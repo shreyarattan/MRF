@@ -7,6 +7,7 @@
 #ifndef __DTWODIMARRAY_H__
 #define __DTWODIMARRAY_H__
 #include <assert.h>
+#include <string.h>
 
 template<class T>
 class _DTwoDimArray

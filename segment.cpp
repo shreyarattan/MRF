@@ -7,6 +7,9 @@
 #include <math.h>
 #include <algorithm>
 
+#define FG 1
+#define BG 0
+
 using namespace std;
 
 // The simple image class is called SDoublePlane, with each pixel represented as
@@ -85,12 +88,22 @@ void calc_mean(SDoublePlane red_plane, SDoublePlane green_plane,
 
 }
 
-double get_gaussian(double red_val, double green_val, double blue_val,
+double get_gaussian_probs(double red_val, double green_val, double blue_val,
 		vector<double> m, vector<double> sig) {
 	return (exp(-(pow(red_val - m[0], 2) / (pow(sig[0], 2))))
 			* exp(-(pow(green_val - m[1], 2) / (pow(sig[1], 2))))
 			* exp(-(pow(blue_val - m[2], 2) / (pow(sig[2], 2)))));
 }
+
+double get_gaussian(double red_val, double green_val, double blue_val,
+		vector<double> m, vector<double> sig) {
+	return (-(pow(red_val - m[0], 2) / (pow(sig[0], 2)))
+			* -(pow(green_val - m[1], 2) / (pow(sig[1], 2)))
+			* -(pow(blue_val - m[2], 2) / (pow(sig[2], 2))));
+}
+
+
+SDoublePlane probs_table;
 
 SDoublePlane naive_segment(const SDoublePlane *img, const vector<Point> &fg,
 		const vector<Point> &bg) {
@@ -99,81 +112,143 @@ SDoublePlane naive_segment(const SDoublePlane *img, const vector<Point> &fg,
 
 	// To make things a little easier for you, we'll create separate red, green, and blue
 	//  planes from the input image.
-	const SDoublePlane &red_plane = img[0], &green_plane = img[1], blue_plane =
-			img[2];
+
+	const SDoublePlane &red_plane = img[0], &green_plane = img[1], blue_plane =	img[2];
 	vector<double> m, sig;
+
 	calc_mean(red_plane, green_plane, blue_plane, m, sig, fg);
-//	cout << "red:" << m[0] << "," << sig[0] << endl;
-//	cout << "green:" << m[1] << "," << sig[1] << endl;
-//	cout << "blue:" << m[2] << "," << sig[2] << endl;
 
-	SDoublePlane result_0(red_plane.rows(), red_plane.cols());
-	SDoublePlane result_1(red_plane.rows(), red_plane.cols());
 
-	for (int i = 0; i < red_plane.rows(); i++) {
-		for (int j = 0; j < red_plane.cols(); j++) {
-			result_0[i][j] = 0;
-			result_1[i][j] = 1;
-		}
-	}
+	SDoublePlane result(red_plane.rows(), red_plane.cols());
+	double fg_score = INT_MAX;
+	double min_probability = INT_MAX;
+	double max_probability = INT_MIN;
 
-	//assign forground and background colors according to the colors strokes
-	/*for(vector<Point>::const_iterator iter = fg.begin(); iter != fg.end(); ++iter)
-	 result_0[iter->row][iter->col] = 1;
+	probs_table = SDoublePlane(red_plane.rows(), red_plane.cols());
 
-	 for(vector<Point>::const_iterator iter = bg.begin(); iter != bg.end(); ++iter)
-	 result_1[iter->row][iter->col] = 0;*/
-	double beta = 0.9999000;
-	cout << beta<<endl;
-	for (int i = 0; i < result_0.rows(); i++) {
-		for (int j = 0; j < result_0.cols(); j++) {
+	double beta = 0.97;
+
+	for (int i = 0; i < result.rows(); i++) {
+		for (int j = 0; j < result.cols(); j++) {
 			Point p(i, j);
 			if (find_point(fg, p)) {
-				result_0[i][j] = 0;
-				result_1[i][j] = 9999999;
+				result[i][j] = 1;
 			} else if (find_point(bg, p)) {
-				result_1[i][j] = 0;
-				result_0[i][j] = 9999999;
+				result[i][j] = 0;
 			} else if (!find_point(fg, p) && !find_point(bg, p)) {
-				if (result_0[i][j] == 0)
-					result_0[i][j] = beta;
-				if (result_1[i][j] == 1) {
-					result_1[i][j] = get_gaussian(red_plane[i][j],
+
+				fg_score = get_gaussian_probs(red_plane[i][j],
 							green_plane[i][j], blue_plane[i][j], m, sig);
-				}
+
+				if(fg_score > beta)
+					result[i][j] = 1;
+				else
+					result[i][j] = 0;
+
+				probs_table[i][j] = (fg_score > beta)?fg_score:beta;
+
+				if(fg_score > max_probability)
+					max_probability = fg_score;
+				if(fg_score < min_probability)
+					min_probability = fg_score;
+
 			}
 		}
 	}
-	SDoublePlane result(red_plane.rows(), red_plane.cols());
-	for (int i = 0; i < result_0.rows(); i++) {
-		for (int j = 0; j < result_0.cols(); j++) {
-//		if (result_0[i][j] == 1) result[i][j] = 1;
-//		else if (result_1[i][j] == 0) result[i][j] = 0;
-//		else {
-			result[i][j] = result_0[i][j] < result_1[i][j] ? 1 : 0;
-			cout << result_0[i][j] << "," << result_1[i][j] << "," << result[i][j] << endl;
-//		}
-		}
-	}
 
-	// Now you can use red_plane, green_plane, and blue_plane just like any other planes.
-	//SDoublePlane result(red_plane.rows(), red_plane.cols());
-
-	/*for(vector<Point>::const_iterator iter = fg.begin(); iter != fg.end(); ++iter)
-	 result[iter->row][iter->col] = 1;
-
-	 for(vector<Point>::const_iterator iter = bg.begin(); iter != bg.end(); ++iter)
-	 result[iter->row][iter->col] = 0;
-	 */
+    cout<<"MAX :"<<max_probability<<", MIN :"<<min_probability<<endl;
 
 	return result;
 }
+
+
+
+
 
 SDoublePlane mrf_segment(const SDoublePlane *img, const vector<Point> &fg,
 		const vector<Point> &bg) {
 	// implement this in step 3...
 	//  this placeholder just returns a random disparity map by calling naive_segment
-	return naive_segment(img, fg, bg);
+
+    SDoublePlane fg_energy(img->rows(), img->cols());
+    SDoublePlane bg_energy(img->rows(), img->cols());
+    SDoublePlane result(img->rows(), img->cols());
+
+
+    const SDoublePlane &red_plane = img[0], &green_plane = img[1], blue_plane =	img[2];
+    vector<double> m, sig;
+
+    double beta = -1e-8;
+
+   	calc_mean(red_plane, green_plane, blue_plane, m, sig, fg);
+
+    for(int i = 0;i<fg_energy.rows(); i++)
+    {
+    	for(int j=0 ; j<fg_energy.cols(); j++)
+    	{
+    		if(find_point(fg, Point(i,j)))
+    			bg_energy[i][j] = INT_MAX;
+    		else if(find_point(bg, Point(i,j)))
+    			fg_energy[i][j] = INT_MAX;
+    		else if (!find_point(fg, Point(i,j)) && !find_point(bg, Point(i,j)))
+    		{
+    			bg_energy[i][j] = beta;
+    			fg_energy[i][j] = get_gaussian(red_plane[i][j],
+    											green_plane[i][j],
+    											blue_plane[i][j],
+    											m, sig);
+    			cout<<fg_energy[i][j]<<endl;
+    		}
+    	}
+    }
+
+
+    double sq_diff = 0;
+
+    for(int i = 1;i<fg_energy.rows()-1; i++)
+    {
+       	for(int j=1 ; j<fg_energy.cols()-1; j++)
+       	{
+       		sq_diff = pow(bg_energy[i][j] - bg_energy[i-1][j],2);
+       		sq_diff += pow(bg_energy[i][j] - bg_energy[i][j-1],2);
+       		sq_diff += pow(bg_energy[i][j] - bg_energy[i+1][j],2);
+       		sq_diff += pow(bg_energy[i][j] - bg_energy[i][j+1],2);
+
+       		double bg_tmp = sq_diff;
+
+       		sq_diff = pow(bg_energy[i][j] - fg_energy[i - 1][j], 2);
+			sq_diff += pow(bg_energy[i][j] - fg_energy[i][j - 1], 2);
+			sq_diff += pow(bg_energy[i][j] - fg_energy[i + 1][j], 2);
+			sq_diff += pow(bg_energy[i][j] - fg_energy[i][j + 1], 2);
+
+			bg_tmp = bg_energy[i][j] + bg_tmp + sq_diff;
+
+       		sq_diff = 0 ;
+
+       		sq_diff = pow(fg_energy[i][j] - fg_energy[i-1][j],2);
+			sq_diff += pow(fg_energy[i][j] - fg_energy[i][j - 1], 2);
+			sq_diff += pow(fg_energy[i][j] - fg_energy[i + 1][j], 2);
+			sq_diff += pow(fg_energy[i][j] - fg_energy[i][j + 1], 2);
+
+			double fg_tmp = sq_diff;
+
+			sq_diff = 0;
+
+			sq_diff = pow(fg_energy[i][j] - fg_energy[i - 1][j], 2);
+			sq_diff += pow(fg_energy[i][j] - fg_energy[i][j - 1], 2);
+			sq_diff += pow(fg_energy[i][j] - fg_energy[i + 1][j], 2);
+			sq_diff += pow(fg_energy[i][j] - fg_energy[i][j + 1], 2);
+
+			fg_tmp = fg_energy[i][j] + fg_tmp + sq_diff;
+
+			result[i][j] = (fg_tmp > bg_tmp)?BG:FG;
+
+       	}
+    }
+
+    cout<<"MRF Done"<<endl;
+
+	return result;
 }
 
 // Take in an input image and a binary segmentation map. Use the segmentation map to split the 
@@ -239,11 +314,12 @@ int main(int argc, char *argv[]) {
 		}
 
 	// do naive segmentation
-	SDoublePlane labels = naive_segment(image_rgb, fg_pixels, bg_pixels);
-	output_segmentation(image_rgb, labels, "naive_segment_result");
+
+	//SDoublePlane labels = naive_segment(image_rgb, fg_pixels, bg_pixels);
+	//output_segmentation(image_rgb, labels, "naive_segment_result");
 
 	// do mrf segmentation
-	labels = naive_segment(image_rgb, fg_pixels, bg_pixels);
+	SDoublePlane labels = mrf_segment(image_rgb, fg_pixels, bg_pixels);
 	output_segmentation(image_rgb, labels, "mrf_segment_result");
 
 	return 0;

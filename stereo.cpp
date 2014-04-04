@@ -5,6 +5,8 @@
 #include <fstream>
 #include <map>
 #include <math.h>
+#include <stdlib.h>
+
 
 using namespace std;
 
