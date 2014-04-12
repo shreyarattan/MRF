@@ -1,5 +1,5 @@
-#include <SImage.h>
-#include <SImageIO.h>
+#include "SImage.h"
+#include "SImageIO.h"
 #include <vector>
 #include <iostream>
 #include <fstream>
@@ -10,6 +10,9 @@
 
 #define FG 1
 #define BG 0
+ typedef enum {
+	 LEFT, RIGHT, UP, DOWN
+ }direction;
 
 using namespace std;
 
@@ -163,40 +166,44 @@ SDoublePlane naive_segment(const SDoublePlane *img, const vector<Point> &fg,
 }
 
 
-void message_passing(vector<SDoublePlane> &mrf, SDoublePlane d, int row, int col, int dir) {
+void message_passing(vector<SDoublePlane> &mrf, SDoublePlane d, int row, int col, direction dir) {
 	double prob = 0;
 	vector <double> result;
 
-		double min_val = INT_MAX;
-		for (int j = 0; j < 2; j++){
-			prob = mrf[j][row][col];
-			prob+=d[row][col];
-			if (dir != 0) {
-					if (mrf[j][row][col-1] == 0)
-					prob+= mrf[j][row][col-1];
-				}
-				if (dir != 1) {
-					if (mrf[j][row][col+1] == 0)
-					prob+= mrf[j][row][col+1];
-				}
-				if (dir != 2) {
-					if (mrf[j][row-1][col] == 0)
-					prob+= mrf[j][row-1][col];
-				}
-				if (dir != 3) {
-					if (mrf[j][row+1][col] == 0)
-					prob+= mrf[j][row+1][col];
-				}
-				min_val = min(min_val, prob);
-				result.push_back(min_val);
+	double min_val = INT_MAX;
+	for (int j = 0; j < 2; j++) {
+		prob = 0;
+//		prob += d[row][col];
+		if (dir != LEFT) {
+//			if (mrf[j][row][col - 1] == 0)
+				prob += mrf[j][row][col - 1];
 		}
+		if (dir != RIGHT) {
+//			if (mrf[j][row][col + 1] == 0)
+				prob += mrf[j][row][col + 1];
+		}
+		if (dir != UP) {
+//			if (mrf[j][row - 1][col] == 0)
+				prob += mrf[j][row - 1][col];
+		}
+		if (dir != DOWN) {
+//			if (mrf[j][row + 1][col] == 0)
+				prob += mrf[j][row + 1][col];
+		}
+		min_val = min(min_val, prob);
+	}
+	cout << mrf[BG][row][col]<<endl;
+	double energy = mrf[BG][row][col]+prob;
+	result.push_back(energy);
+	energy = mrf[FG][row][col]+prob;
+	result.push_back(energy);
 
 
 	for (int i = 0; i < 2; i++) {
-		if (dir == 0) mrf[i][row][col+1] = result[i];
-		if (dir == 1) mrf[i][row-1][col-1] = result[i];
-		if (dir == 2) mrf[i][row-1][col] = result[i];
-		if (dir == 3) mrf[i][row+1][col] = result[i];
+		if (dir == LEFT) mrf[i][row][col+1] = result[i];
+		if (dir == RIGHT) mrf[i][row-1][col-1] = result[i];
+		if (dir == UP) mrf[i][row-1][col] = result[i];
+		if (dir == DOWN) mrf[i][row+1][col] = result[i];
 	}
 }
 
@@ -210,41 +217,45 @@ SDoublePlane loopy_belief(vector<SDoublePlane> v, SDoublePlane d) {
 		//up
 		for (int i = 1; i < d.cols() - 1; i++) {
 			for (int j = d.rows() - 2; j >= 1; j--) {
-				message_passing(v, d, j, i, 2);
+				if (i == 5) { cout <<v[0][i][j]<<","<<v[1][i][j] <<endl;}
+				message_passing(v, d, j, i, UP);
 			}
 		}
 
 		cout << "completed message passing for up" << endl;
 
 		//left
-		for (int i = 1; i < d.rows() - 1; i++) {
+		/*for (int i = 1; i < d.rows() - 1; i++) {
 			for (int j = d.cols() - 1; j >= 1; j--) {
-				message_passing(v, d, i, j, 0);
+				if (j == 5) { cout <<v[0][i][j]<<","<<v[1][i][j] <<endl;}
+				message_passing(v, d, i, j, LEFT);
 			}
 
-		}
+		}*/
 		cout << "completed message passing for left"<<endl;
-		//right
-		for (int i = 1; i < d.rows()-1; i++) {
-			for (int j = 1; j < d.cols()-1; j++) {
-				message_passing(v, d, i, j, 1);
-			}
-		}
-		cout << "completed message passing for right"<<endl;
+//		//right
+//		for (int i = 1; i < d.rows()-1; i++) {
+//			for (int j = 1; j < d.cols()-1; j++) {
+//				message_passing(v, d, i, j, RIGHT);
+//			}
+//		}
+//		cout << "completed message passing for right"<<endl;
 
 		//down
-		for (int i = 1; i < d.cols()-1; i++) {
-			for (int j = 1; j < d.rows()-1; j++) {
-				message_passing(v, d, j,i, 3);
-			}
-		}
+//		for (int i = 1; i < d.cols()-1; i++) {
+//			for (int j = 1; j < d.rows()-1; j++) {
+//				message_passing(v, d, j,i, DOWN);
+//			}
+//		}
 		cout << "completed message passing for down"<<endl;
 //		}
 	}
 	SDoublePlane result(d.rows(), d.cols());
 	for (int i =0; i < result.rows(); i++){
 		for (int j = 0; j < result.cols(); j++) {
-			result[i][j] = v[0][i][j] < v[1][i][j]? BG:FG;
+
+//			cout<<v[BG][i][j]<<","<<v[FG][i][j]<<endl;
+			result[i][j] = v[BG][i][j] < v[FG][i][j]? BG:FG;
 		}
 	}
 	return result;
@@ -267,26 +278,6 @@ SDoublePlane mrf_segment(const SDoublePlane *img, const vector<Point> &fg,
 //    double beta = 2e-009;
 //
    	calc_mean(red_plane, green_plane, blue_plane, m, sig, fg);
-//   	calc_mean(red_plane, green_plane, blue_plane, bg_m, bg_sig, bg);
-//
-//    for(int i = 0;i<fg_energy.rows(); i++)
-//    {
-//    	for(int j=0 ; j<fg_energy.cols(); j++)
-//    	{
-//    		if(find_point(fg, Point(i,j)))
-//    			bg_energy[i][j] = INT_MAX;
-//    		else if(find_point(bg, Point(i,j)))
-//    			fg_energy[i][j] = INT_MAX;
-//    		else if (!find_point(fg, Point(i,j)) && !find_point(bg, Point(i,j)))
-//    		{
-//				bg_energy[i][j] = beta;
-//				fg_energy[i][j] = -(get_gaussian(red_plane[i][j],
-//						green_plane[i][j], blue_plane[i][j], fg_m, fg_sig));
-//    			//cout<<fg_energy[i][j]<<endl;
-//    		}
-//    		//cout<<fg_energy[i][j] << "," << bg_energy[i][j] <<endl;
-//    	}
-//    }
 
     double fg_score = INT_MAX;
     	double min_probability = INT_MAX;
@@ -325,16 +316,17 @@ SDoublePlane mrf_segment(const SDoublePlane *img, const vector<Point> &fg,
 
     for (int label = 0; label < 2; label++) {
     SDoublePlane e(red_plane.rows(), red_plane.cols());
+
     for(int i = 1;i<fg_energy.rows()-1; i++)
     {
        	for(int j=1 ; j<fg_energy.cols()-1; j++)
        	{
-
        		sq_diff = pow(label - result[i - 1][j], 2);
 			sq_diff += pow(label - result[i][j - 1], 2);
 			sq_diff += pow(label - result[i + 1][j], 2);
 			sq_diff += pow(label - result[i][j + 1], 2);
 			bg_energy[i][j] = probs_table[i][j] + sq_diff;
+			cout<<bg_energy[i][j]<<endl;;
        	}
     }
     	v.push_back(bg_energy);
