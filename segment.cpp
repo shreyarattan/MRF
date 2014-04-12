@@ -163,86 +163,91 @@ SDoublePlane naive_segment(const SDoublePlane *img, const vector<Point> &fg,
 }
 
 
-void message_passing(SDoublePlane &mrf, int row, int col, int dir,
-		SDoublePlane bg, SDoublePlane fg) {
-	double bg_p, fg_p;
-//	cout << row <<","<<col<<endl;
-	bg_p = mrf[row][col];
-	if (dir != 0) {
-		bg_p+= bg[row][col-1];
-	}
-	if (dir != 1) {
-		bg_p+= bg[row][col+1];
-	}
-	if (dir != 2) {
-		bg_p+= bg[row-1][col];
-	}
-	if (dir != 3) {
-		bg_p+= bg[row+1][col];
-	}
+void message_passing(vector<SDoublePlane> &mrf, SDoublePlane d, int row, int col, int dir) {
+	double prob = 0;
+	vector <double> result;
 
-	fg_p = mrf[row][col];
-	if (dir != 0) {
-		fg_p += fg[row][col-1];
-	}
-	if (dir != 1) {
-		fg_p += fg[row][col+1];
-	}
-	if (dir != 2) {
-		fg_p += fg[row-1][col];
-	}
-	if (dir != 3) {
-		fg_p += fg[row+1][col];
-	}
+		double min_val = INT_MAX;
+		for (int j = 0; j < 2; j++){
+			prob = mrf[j][row][col];
+			prob+=d[row][col];
+			if (dir != 0) {
+					if (mrf[j][row][col-1] == 0)
+					prob+= mrf[j][row][col-1];
+				}
+				if (dir != 1) {
+					if (mrf[j][row][col+1] == 0)
+					prob+= mrf[j][row][col+1];
+				}
+				if (dir != 2) {
+					if (mrf[j][row-1][col] == 0)
+					prob+= mrf[j][row-1][col];
+				}
+				if (dir != 3) {
+					if (mrf[j][row+1][col] == 0)
+					prob+= mrf[j][row+1][col];
+				}
+				min_val = min(min_val, prob);
+				result.push_back(min_val);
+		}
 
-	double min_p = min(bg_p, fg_p);
-//	cout<<min_p<<endl;
-	if (dir == 0) mrf[row][col+1] = min_p;
-	if (dir == 1) mrf[row-1][col-1] = min_p;
-	if (dir == 2) mrf[row-1][col] = min_p;
-	if (dir == 3) mrf[row+1][col] = min_p;
+
+	for (int i = 0; i < 2; i++) {
+		if (dir == 0) mrf[i][row][col+1] = result[i];
+		if (dir == 1) mrf[i][row-1][col-1] = result[i];
+		if (dir == 2) mrf[i][row-1][col] = result[i];
+		if (dir == 3) mrf[i][row+1][col] = result[i];
+	}
 }
 
-void loopy_belief(SDoublePlane &mrf, SDoublePlane bg, SDoublePlane fg) {
+SDoublePlane loopy_belief(vector<SDoublePlane> v, SDoublePlane d) {
 	int iterations = 1;
 	//0 = left, 1 = right, 2 = up, 3 = down
 
 
 	for (int i = 0; i < iterations; i++) {
+//		for(int label=0; label<2;label++) {
 		//up
-		for (int i = 1; i < mrf.cols() - 1; i++) {
-			for (int j = mrf.rows() - 2; j >= 1; j--) {
-				message_passing(mrf, j, i, 2, bg, fg);
+		for (int i = 1; i < d.cols() - 1; i++) {
+			for (int j = d.rows() - 2; j >= 1; j--) {
+				message_passing(v, d, j, i, 2);
 			}
 		}
 
 		cout << "completed message passing for up" << endl;
 
 		//left
-		for (int i = 1; i < mrf.rows() - 1; i++) {
-			for (int j = mrf.cols() - 1; j >= 1; j--) {
-				message_passing(mrf, i, j, 0, bg, fg);
+		for (int i = 1; i < d.rows() - 1; i++) {
+			for (int j = d.cols() - 1; j >= 1; j--) {
+				message_passing(v, d, i, j, 0);
 			}
 
 		}
 		cout << "completed message passing for left"<<endl;
 		//right
-		for (int i = 1; i < mrf.rows()-1; i++) {
-			for (int j = 1; j < mrf.cols()-1; j++) {
-				message_passing(mrf, i, j, 1, bg, fg);
+		for (int i = 1; i < d.rows()-1; i++) {
+			for (int j = 1; j < d.cols()-1; j++) {
+				message_passing(v, d, i, j, 1);
 			}
 		}
 		cout << "completed message passing for right"<<endl;
 
 		//down
-		for (int i = 1; i < mrf.cols()-1; i++) {
-			for (int j = 1; j < mrf.rows()-1; j++) {
-				message_passing(mrf, j,i, 3, bg, fg);
+		for (int i = 1; i < d.cols()-1; i++) {
+			for (int j = 1; j < d.rows()-1; j++) {
+				message_passing(v, d, j,i, 3);
 			}
 		}
 		cout << "completed message passing for down"<<endl;
-
+//		}
 	}
+	SDoublePlane result(d.rows(), d.cols());
+	for (int i =0; i < result.rows(); i++){
+		for (int j = 0; j < result.cols(); j++) {
+			result[i][j] = v[0][i][j] < v[1][i][j]? BG:FG;
+		}
+	}
+	return result;
 }
 
 
@@ -316,38 +321,30 @@ SDoublePlane mrf_segment(const SDoublePlane *img, const vector<Point> &fg,
     	}
 
     double sq_diff = 0;
+    vector<SDoublePlane> v;
 
+    for (int label = 0; label < 2; label++) {
+    SDoublePlane e(red_plane.rows(), red_plane.cols());
     for(int i = 1;i<fg_energy.rows()-1; i++)
     {
        	for(int j=1 ; j<fg_energy.cols()-1; j++)
        	{
 
-       		sq_diff = pow(BG - result[i - 1][j], 2);
-			sq_diff += pow(BG - result[i][j - 1], 2);
-			sq_diff += pow(BG - result[i + 1][j], 2);
-			sq_diff += pow(BG - result[i][j + 1], 2);
-			double bg_tmp = probs_table[i][j] + sq_diff;
-
-			sq_diff = 0;
-			sq_diff = pow(FG - result[i - 1][j], 2);
-			sq_diff += pow(FG - result[i][j - 1], 2);
-			sq_diff += pow(FG - result[i + 1][j], 2);
-			sq_diff += pow(FG - result[i][j + 1], 2);
-			double fg_tmp = probs_table[i][j] + sq_diff;
-
-
-			if (result[i][j] == 1) cout<<"fg"<<" "<<bg_tmp <<","<<fg_tmp<<endl;;
-
-			result[i][j] = (fg_tmp <= bg_tmp)?FG:BG;
-
+       		sq_diff = pow(label - result[i - 1][j], 2);
+			sq_diff += pow(label - result[i][j - 1], 2);
+			sq_diff += pow(label - result[i + 1][j], 2);
+			sq_diff += pow(label - result[i][j + 1], 2);
+			bg_energy[i][j] = probs_table[i][j] + sq_diff;
        	}
     }
+    	v.push_back(bg_energy);
+    }
 
-//    loopy_belief(result, bg_energy, fg_energy);
+    result = loopy_belief(v, probs_table);
 //
 //    for (int i = 0; i < result.rows(); i++) {
 //    	for (int j = 0; j < result.cols(); j++) {
-//    		result[i][j] = (result[i][j]<beta)? FG:BG;
+//    		cout<<result[i][j]<<endl;
 //    	}
 //    }
 
