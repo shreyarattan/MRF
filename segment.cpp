@@ -177,31 +177,40 @@ void message_passing(vector<SDoublePlane> &mrf, SDoublePlane d, int row, int col
 		if (dir != LEFT) {
 //			if (mrf[j][row][col - 1] == 0)
 				prob += mrf[j][row][col - 1];
+//				cout<<prob<<",";
 		}
 		if (dir != RIGHT) {
 //			if (mrf[j][row][col + 1] == 0)
 				prob += mrf[j][row][col + 1];
+//				cout<<prob<<",";
 		}
 		if (dir != UP) {
 //			if (mrf[j][row - 1][col] == 0)
 				prob += mrf[j][row - 1][col];
+//				cout<<prob<<",";
 		}
 		if (dir != DOWN) {
 //			if (mrf[j][row + 1][col] == 0)
+
 				prob += mrf[j][row + 1][col];
+//				cout<<prob<<endl;
 		}
-		min_val = min(min_val, prob);
+		min_val = min(min_val, prob/3);
+
 	}
-	cout << mrf[BG][row][col]<<endl;
-	double energy = mrf[BG][row][col]+prob;
+//	cout << mrf[BG][row][col]<<endl;
+	double energy = mrf[BG][row][col]+min_val;
 	result.push_back(energy);
-	energy = mrf[FG][row][col]+prob;
+	energy = mrf[FG][row][col]+min_val;
 	result.push_back(energy);
 
+//	cin.ignore();
 
 	for (int i = 0; i < 2; i++) {
+		if (i==0)
+//		cout<<mrf[0][row+1][col]<<endl;
 		if (dir == LEFT) mrf[i][row][col+1] = result[i];
-		if (dir == RIGHT) mrf[i][row-1][col-1] = result[i];
+		if (dir == RIGHT) mrf[i][row][col-1] = result[i];
 		if (dir == UP) mrf[i][row-1][col] = result[i];
 		if (dir == DOWN) mrf[i][row+1][col] = result[i];
 	}
@@ -217,7 +226,6 @@ SDoublePlane loopy_belief(vector<SDoublePlane> v, SDoublePlane d) {
 		//up
 		for (int i = 1; i < d.cols() - 1; i++) {
 			for (int j = d.rows() - 2; j >= 1; j--) {
-				if (i == 5) { cout <<v[0][i][j]<<","<<v[1][i][j] <<endl;}
 				message_passing(v, d, j, i, UP);
 			}
 		}
@@ -225,28 +233,27 @@ SDoublePlane loopy_belief(vector<SDoublePlane> v, SDoublePlane d) {
 		cout << "completed message passing for up" << endl;
 
 		//left
-		/*for (int i = 1; i < d.rows() - 1; i++) {
+		for (int i = 1; i < d.rows() - 1; i++) {
 			for (int j = d.cols() - 1; j >= 1; j--) {
 				if (j == 5) { cout <<v[0][i][j]<<","<<v[1][i][j] <<endl;}
 				message_passing(v, d, i, j, LEFT);
 			}
-
-		}*/
+		}
 		cout << "completed message passing for left"<<endl;
-//		//right
-//		for (int i = 1; i < d.rows()-1; i++) {
-//			for (int j = 1; j < d.cols()-1; j++) {
-//				message_passing(v, d, i, j, RIGHT);
-//			}
-//		}
-//		cout << "completed message passing for right"<<endl;
+		//right
+		for (int i = 1; i < d.rows()-1; i++) {
+			for (int j = 1; j < d.cols()-1; j++) {
+				message_passing(v, d, i, j, RIGHT);
+			}
+		}
+		cout << "completed message passing for right"<<endl;
 
 		//down
-//		for (int i = 1; i < d.cols()-1; i++) {
-//			for (int j = 1; j < d.rows()-1; j++) {
-//				message_passing(v, d, j,i, DOWN);
-//			}
-//		}
+		for (int i = 1; i < d.cols()-1; i++) {
+			for (int j = 1; j < d.rows()-1; j++) {
+				message_passing(v, d, j,i, DOWN);
+			}
+		}
 		cout << "completed message passing for down"<<endl;
 //		}
 	}
@@ -326,7 +333,6 @@ SDoublePlane mrf_segment(const SDoublePlane *img, const vector<Point> &fg,
 			sq_diff += pow(label - result[i + 1][j], 2);
 			sq_diff += pow(label - result[i][j + 1], 2);
 			bg_energy[i][j] = probs_table[i][j] + sq_diff;
-			cout<<bg_energy[i][j]<<endl;;
        	}
     }
     	v.push_back(bg_energy);
