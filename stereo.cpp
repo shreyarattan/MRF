@@ -26,6 +26,85 @@ using namespace std;
 //
 
 
+void calc_mean(SDoublePlane red_plane, SDoublePlane green_plane,
+		SDoublePlane blue_plane, vector<double>&m, vector<double>&sig,
+		const vector<Point> &fg) {
+	double sum_red = 0, sum_green = 0, sum_blue = 0;
+	for (int i = 0; i < red_plane.rows(); i++)
+		for (int j = 0; j < red_plane.cols(); j++) {
+			Point p(i, j);
+			if (find_point(fg, p)) {
+				sum_red += red_plane[i][j];
+				sum_green += green_plane[i][j];
+				sum_blue += blue_plane[i][j];
+			}
+		}
+
+	double mean_red = sum_red / (fg.size());
+	double mean_green = sum_green / (fg.size());
+	double mean_blue = sum_blue / (fg.size());
+	m.push_back(mean_red);
+	m.push_back(mean_green);
+	m.push_back(mean_blue);
+
+	sum_red = 0, sum_green = 0, sum_blue = 0;
+
+	for (int i = 0; i < red_plane.rows(); i++)
+		for (int j = 0; j < red_plane.cols(); j++) {
+			Point p(i, j);
+			if (find_point(fg, p)){
+				sum_red += pow((red_plane[i][j] - mean_red), 2);
+				sum_green += pow((green_plane[i][j] - mean_green), 2);
+				sum_blue += pow((blue_plane[i][j] - mean_blue), 2);
+			}
+		}
+
+	double variance = sum_red / (fg.size() - 1);
+	sig.push_back(variance);
+	variance = sum_green / (fg.size() - 1);
+	sig.push_back(variance);
+	variance = sum_blue / (fg.size() - 1);
+	sig.push_back(variance);
+
+
+}
+
+
+
+double get_gaussian(double red_val, double green_val, double blue_val,
+		vector<double> m, vector<double> sig) {
+	return (-(pow(red_val - m[0], 2) / (pow(sig[0], 2)))
+			* -(pow(green_val - m[1], 2) / (pow(sig[1], 2)))
+			* -(pow(blue_val - m[2], 2) / (pow(sig[2], 2))));
+}
+
+
+
+
+
+void compute_unary_cost(vector<SDoublePlane> &D, SDoublePlane left_image, SDoublePlane right_image, int w, int d)
+{
+    double sum = 0;
+
+    for(int i=w; i<left_image.rows()-w; i++)
+    {
+	for(int j=w; j<left_image.cols()-w; j++)
+	{
+	    for(int u=-w; u<w; u++)
+	    {
+		for(int v=-w; v<w; v++)
+		{
+		    sum += pow(left_image[i+u][j+v] - right_image[i+u][j+v+d], 2);
+		}
+	    }
+	    D[d][i][j] = sum;
+	    sum = 0;
+	}
+    }
+}
+
+
+
 
 SDoublePlane mrf_stereo(const SDoublePlane &left_image, const SDoublePlane &right_image)
 {
