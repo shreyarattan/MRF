@@ -1,12 +1,12 @@
-#include <SImage.h>
-#include <SImageIO.h>
+#include "SImage.h"
+#include "SImageIO.h"
 #include <vector>
 #include <iostream>
 #include <fstream>
 #include <map>
 #include <math.h>
-#include <stdlib.h>
-
+#include <algorithm>
+#include <limits.h>
 
 using namespace std;
 
@@ -25,64 +25,7 @@ using namespace std;
 // results, the values in the SDoublePlane should be in the range [0,255].
 //
 
-
-void calc_mean(SDoublePlane red_plane, SDoublePlane green_plane,
-		SDoublePlane blue_plane, vector<double>&m, vector<double>&sig,
-		const vector<Point> &fg) {
-	double sum_red = 0, sum_green = 0, sum_blue = 0;
-	for (int i = 0; i < red_plane.rows(); i++)
-		for (int j = 0; j < red_plane.cols(); j++) {
-			Point p(i, j);
-			if (find_point(fg, p)) {
-				sum_red += red_plane[i][j];
-				sum_green += green_plane[i][j];
-				sum_blue += blue_plane[i][j];
-			}
-		}
-
-	double mean_red = sum_red / (fg.size());
-	double mean_green = sum_green / (fg.size());
-	double mean_blue = sum_blue / (fg.size());
-	m.push_back(mean_red);
-	m.push_back(mean_green);
-	m.push_back(mean_blue);
-
-	sum_red = 0, sum_green = 0, sum_blue = 0;
-
-	for (int i = 0; i < red_plane.rows(); i++)
-		for (int j = 0; j < red_plane.cols(); j++) {
-			Point p(i, j);
-			if (find_point(fg, p)){
-				sum_red += pow((red_plane[i][j] - mean_red), 2);
-				sum_green += pow((green_plane[i][j] - mean_green), 2);
-				sum_blue += pow((blue_plane[i][j] - mean_blue), 2);
-			}
-		}
-
-	double variance = sum_red / (fg.size() - 1);
-	sig.push_back(variance);
-	variance = sum_green / (fg.size() - 1);
-	sig.push_back(variance);
-	variance = sum_blue / (fg.size() - 1);
-	sig.push_back(variance);
-
-
-}
-
-
-
-double get_gaussian(double red_val, double green_val, double blue_val,
-		vector<double> m, vector<double> sig) {
-	return (-(pow(red_val - m[0], 2) / (pow(sig[0], 2)))
-			* -(pow(green_val - m[1], 2) / (pow(sig[1], 2)))
-			* -(pow(blue_val - m[2], 2) / (pow(sig[2], 2))));
-}
-
-
-
-
-
-void compute_unary_cost(vector<SDoublePlane> &D, SDoublePlane left_image, SDoublePlane right_image, int w, int d)
+void compute_unary_cost(vector<SDoublePlane> &D, SDoublePlane left_image, SDoublePlane right_image, SDoublePlane &disp, int w, int d)
 {
     double sum = 0;
 
@@ -94,16 +37,43 @@ void compute_unary_cost(vector<SDoublePlane> &D, SDoublePlane left_image, SDoubl
 	    {
 		for(int v=-w; v<w; v++)
 		{
+			//cout << i+u<<","<<j+v<<","<<j+v+d<<endl;
 		    sum += pow(left_image[i+u][j+v] - right_image[i+u][j+v+d], 2);
 		}
 	    }
+		// find label based on minimum difference
+		disp[i][j] = D[disp[i][j]][i][j] < sum? disp[i][j]:d;
 	    D[d][i][j] = sum;
+
 	    sum = 0;
 	}
     }
+
 }
 
+SDoublePlane compute_pairwise_cost(SDoublePlane disp) {
+	int sum = 0;
+	int min_diff = INT_MAX;
+	int min_label = disp.cols();
+	SDoublePlane result(disp.rows(), disp.cols());
 
+	for (int i = 1; i < disp.rows()-1; i++) {
+		for (int  j = 1; j < disp.cols()-1; j++) {
+			for (int d = 0; d < disp.cols(); d++){
+				sum += pow(d-disp[i][j-1],2);
+				sum += pow(d-disp[i][j+1],2);
+				sum += pow(d-disp[i+1][j],2);
+				sum += pow(d-disp[i-1][j],2);
+				if (sum < min_diff) {
+					min_diff = sum;
+					min_label = d;
+				}
+				result[i][j] = min_diff;
+			}
+		}
+	}
+	return result;
+}
 
 
 SDoublePlane mrf_stereo(const SDoublePlane &left_image, const SDoublePlane &right_image)
@@ -112,14 +82,38 @@ SDoublePlane mrf_stereo(const SDoublePlane &left_image, const SDoublePlane &righ
   //  this placeholder just returns a random disparity map
   SDoublePlane result(left_image.rows(), left_image.cols());
 
-  for(int i=0; i<left_image.rows(); i++)
+  // disparity level for each pixel
+  SDoublePlane disp(left_image.rows(), left_image.cols());
+  vector<SDoublePlane> D;
+
+  for (int i = 0; i < left_image.rows(); i++) {
+	for (int j = 0; j < left_image.cols(); j++) {
+		disp[i][j] = left_image.cols()-1;
+	}
+
+  }
+
+  for (int i = 0; i < left_image.cols(); i++)
+	D.push_back(disp);
+
+  for (int iter = 0; iter < 1; iter++) {
+
+	  for (int i = 0; i < left_image.cols(); i++) {
+		compute_unary_cost(D, left_image, right_image, disp, 3, i);
+	  }
+
+	  //result = compute_pairwise_cost(disp);
+
+
+
+  }
+
+  /*for(int i=0; i<left_image.rows(); i++)
     for(int j=0; j<left_image.cols(); j++)
-      result[i][j] = rand() % 256;
+      result[i][j] = rand() % 256;*/
 
   return result;
 }
-
-
 
 int main(int argc, char *argv[])
 {
