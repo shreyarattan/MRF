@@ -10,7 +10,7 @@
 #include <thread>
 #include <mutex>
 #include<string>
-#define DLIMIT 255
+#define DLIMIT 427
 
 using namespace std;
 
@@ -47,7 +47,7 @@ struct disp_arg{
 
 
 
-double get_messages_from_neighbors(SDoublePlane m, int row, int col,
+double get_messages_from_neighbors(SDoublePlane &m, int row, int col,
 		direction dir) {
 	double sum = 0;
 
@@ -94,7 +94,7 @@ double get_messages_from_neighbors(SDoublePlane m, int row, int col,
 	}
 }*/
 
-void set_disparity(int start, int end, vector<SDoublePlane> D, SDoublePlane V, vector<vector<SDoublePlane> > m)
+void set_disparity(int start, int end, vector<SDoublePlane> &D, SDoublePlane &V, vector<vector<SDoublePlane> > &m)
 {
 	//disp_arg *A = (disp_arg*)obj;
 
@@ -102,12 +102,15 @@ void set_disparity(int start, int end, vector<SDoublePlane> D, SDoublePlane V, v
     double min_score = INT_MAX;
 	int label, t=1;
 	double neighbors_sum;
-
-	for (int i = start; i < end; i++) {
+	start = (start < 1)? 1:start;
+	end = (end < (V.rows()-1))?end:(V.rows()-1);
+	cout << start<<","<<end<<endl;
+	for (int i = start; i < end-1; i++) {
 		for (int j = 1; j < D[0].cols() - 1; j++) {
 			min_score = INT_MAX;
 			label = DLIMIT;
 			for (int d = 0; d < DLIMIT; d++) {
+				//cout << i<<","<<j<<endl;
 				neighbors_sum = get_messages_from_neighbors(m[d][t], i, j, ALL);
 				disp_score = D[d][i][j] + neighbors_sum;
 
@@ -122,11 +125,7 @@ void set_disparity(int start, int end, vector<SDoublePlane> D, SDoublePlane V, v
 	}
 }
 
-void sample(int m) {
-	cout << m;
-}
-
-void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
+void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V) {
 	vector<vector<SDoublePlane> > m;
 	vector<SDoublePlane> tmp;
 
@@ -169,9 +168,9 @@ void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
 
 				neighbors_sum = get_messages_from_neighbors(
 						m[source_label][t_minus_one], i, j, RIGHT);
-				no_match_score = potts_cost + D[source_label][i][j]
+				no_match_score = pow(target_label - source_label, 2) + D[source_label][i][j]
 						+ neighbors_sum;
-
+				//cout<< match_score<<","<<no_match_score<<endl;;
 				m[target_label][t][i][j + 1] = min(match_score, no_match_score);
 
 			}
@@ -182,7 +181,7 @@ void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
 		//diff = tmp_diff/(probs.rows()*probs.cols());
 		//tmp_diff = 0;
 
-		/*for (int i = 1; i < probs.rows() - 1; i++) {
+		for (int i = 1; i < probs.rows() - 1; i++) {
 			for (int j = probs.cols() - 1; j > 0; j--) {
 
 				 target_label = V[i][j-1];
@@ -192,11 +191,11 @@ void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
 				 match_score = D[target_label][i][j] + neighbors_sum;
 
 				 neighbors_sum = get_messages_from_neighbors(m[source_label][t_minus_one], i, j, LEFT);
-				 no_match_score = potts_cost + D[source_label][i][j] + neighbors_sum;
+				 no_match_score = pow(target_label - source_label, 2) + D[source_label][i][j] + neighbors_sum;
 
 				 m[target_label][t][i][j-1] = min(match_score, no_match_score);
 			}
-		}*/
+		}
 
 		cout << "Messages sent left\n";
 
@@ -214,20 +213,20 @@ void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
 	int num_threads = probs.rows()/100;
 	num_threads+=probs.rows()%100 > 0? 1:0;
 
-	thread thrds[10];
-	for(int i=0; i<probs.rows()/100; i++)
+	//thread thrds[10];
+
+	/*vector <thread> thrds;
+	for(int i=0; i<=probs.rows()/100; i++)
 	{
-		disp_arg A(i, i+100, D, V, m);
 //		pthread_create(&thrd, NULL, &set_disparity, (void*) &A);
-		thrds[i] = thread(set_disparity,i, i+100, D, V, m);
-
+		thrds.push_back(thread(set_disparity,i*100, i*100+100, D, V, m));
 	}
 
-	for (int i = 0; i < num_threads; i++) {
+	for (int i = 0; i < thrds.size(); i++) {
 		thrds[i].join();
-	}
+	}*/
 
-	/*double disp_score;
+	double disp_score;
 	double min_score = INT_MAX;
 	int label;
 
@@ -247,7 +246,7 @@ void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
 			}
 			V[i][j] = label;
 		}
-	}*/
+	}
 }
 
 
