@@ -7,10 +7,8 @@
 #include <math.h>
 #include <algorithm>
 #include <limits.h>
-#include <thread>
-#include <mutex>
 #include<string>
-#define DLIMIT 427
+#define DLIMIT 255
 
 using namespace std;
 
@@ -196,8 +194,52 @@ void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V) {
 				 m[target_label][t][i][j-1] = min(match_score, no_match_score);
 			}
 		}
-
+//		cout<<m[target_label].size()<<endl;
 		cout << "Messages sent left\n";
+
+		for (int i = 1; i < probs.cols() - 1; i++) {
+			for (int j = probs.rows() - 1; j > 1; j--) {
+				cout<<j<<","<<i<<endl;
+				target_label = V[j][i - 1];
+				source_label = V[j][i];
+
+				cout<<target_label<<endl;
+
+				neighbors_sum = get_messages_from_neighbors(
+						m[target_label][t_minus_one], j, i, UP);
+				match_score = D[target_label][j][i] + neighbors_sum;
+
+				neighbors_sum = get_messages_from_neighbors(
+						m[source_label][t_minus_one], j, i, UP);
+				no_match_score = pow(target_label - source_label, 2)
+						+ D[source_label][j][i] + neighbors_sum;
+
+				m[target_label][t][j-1][i] = min(match_score, no_match_score);
+			}
+		}
+
+		cout << "Messages sent up\n";
+
+		/*for (int i = 1; i < probs.cols() - 1; i++) {
+			for (int j = 1; j < probs.rows() - 1; j++) {
+
+				target_label = V[i][j + 1];
+				source_label = V[i][j];
+
+				neighbors_sum = get_messages_from_neighbors(
+						m[target_label][t_minus_one], i, j, DOWN);
+				match_score = D[target_label][i][j] + neighbors_sum;
+
+				neighbors_sum = get_messages_from_neighbors(
+						m[source_label][t_minus_one], i, j, DOWN);
+				no_match_score = pow(target_label - source_label, 2)
+						+ D[source_label][i][j] + neighbors_sum;
+				//cout<< match_score<<","<<no_match_score<<endl;;
+				m[target_label][t][i][j + 1] = min(match_score, no_match_score);
+
+			}
+		}*/
+		cout << "Messages sent down\n";
 
 		//tmp_diff = tmp_diff/(probs.rows()*probs.cols());
 		//diff = (diff + tmp_diff)/2;
