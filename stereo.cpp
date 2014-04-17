@@ -7,9 +7,9 @@
 #include <math.h>
 #include <algorithm>
 #include <limits.h>
-#include <pthread.h>
+#include <thread>
 #include <mutex>
-#include<string.h>
+#include<string>
 #define DLIMIT 255
 
 using namespace std;
@@ -66,7 +66,7 @@ double get_messages_from_neighbors(SDoublePlane m, int row, int col,
 	return sum;
 }
 
-void set_disparity(void *obj)
+/*void set_disparity(void *obj)
 {
 	disp_arg *A = (disp_arg*)obj;
 
@@ -92,6 +92,38 @@ void set_disparity(void *obj)
 			A->V[i][j] = label;
 		}
 	}
+}*/
+
+void set_disparity(int start, int end, vector<SDoublePlane> D, SDoublePlane V, vector<vector<SDoublePlane> > m)
+{
+	//disp_arg *A = (disp_arg*)obj;
+
+	double disp_score;
+    double min_score = INT_MAX;
+	int label, t=1;
+	double neighbors_sum;
+
+	for (int i = start; i < end; i++) {
+		for (int j = 1; j < D[0].cols() - 1; j++) {
+			min_score = INT_MAX;
+			label = DLIMIT;
+			for (int d = 0; d < DLIMIT; d++) {
+				neighbors_sum = get_messages_from_neighbors(m[d][t], i, j, ALL);
+				disp_score = D[d][i][j] + neighbors_sum;
+
+				if (disp_score < min_score) {
+					min_score = disp_score;
+					label = d;
+				}
+			}
+
+			V[i][j] = label;
+		}
+	}
+}
+
+void sample(int m) {
+	cout << m;
 }
 
 void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
@@ -178,15 +210,24 @@ void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
 		t_minus_one = t;
 	}
 
-	pthread_t thrd;
 
+	int num_threads = probs.rows()/100;
+	num_threads+=probs.rows()%100 > 0? 1:0;
+
+	thread thrds[10];
 	for(int i=0; i<probs.rows()/100; i++)
 	{
-		disp_arg *A(i, i+100, D, V, m);
-		pthread_create(&thrd, NULL, &set_disparity, static_cast<void*>(A));
+		disp_arg A(i, i+100, D, V, m);
+//		pthread_create(&thrd, NULL, &set_disparity, (void*) &A);
+		thrds[i] = thread(set_disparity,i, i+100, D, V, m);
+
 	}
 
-	double disp_score;
+	for (int i = 0; i < num_threads; i++) {
+		thrds[i].join();
+	}
+
+	/*double disp_score;
 	double min_score = INT_MAX;
 	int label;
 
@@ -206,7 +247,7 @@ void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
 			}
 			V[i][j] = label;
 		}
-	}
+	}*/
 }
 
 
