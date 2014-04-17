@@ -211,7 +211,7 @@ void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
 	double tmp_diff = 0;
 	double diff = 100;
 
-	cout << "Starting loopee bee pee \n";
+	cout << "Starting loopy bp \n";
 
 	int it = 0;
 
@@ -260,7 +260,7 @@ void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
 		for (int i = 1; i < probs.rows() - 1; i++) {
 			for (int j = probs.cols() - 1; j > 0; j--) {
 
-				/*target_label = V[i][j-1];
+				 target_label = V[i][j-1];
 				 source_label = V[i][j];
 
 				 neighbors_sum = get_messages_from_neighbors(m[target_label][t_minus_one], i, j, LEFT);
@@ -269,10 +269,10 @@ void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
 				 neighbors_sum = get_messages_from_neighbors(m[source_label][t_minus_one], i, j, LEFT);
 				 no_match_score = potts_cost + D[source_label][i][j] + neighbors_sum;
 
-				 m[target_label][t][i][j-1] = min(match_score, no_match_score);		*/
+				 m[target_label][t][i][j-1] = min(match_score, no_match_score);
 
 				//if pixel was FG
-				neighbors_sum = get_messages_from_neighbors(m[FG][t_minus_one],
+				/*neighbors_sum = get_messages_from_neighbors(m[FG][t_minus_one],
 						i, j, LEFT);
 
 				FGScore = D[FG][i][j] + pow(FG - V[i][j - 1], 2)
@@ -284,7 +284,7 @@ void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
 				BGScore = D[BG][i][j] + pow(BG - V[i][j - 1], 2)
 						+ neighbors_sum;
 
-				m[V[i][j - 1]][t][i][j - 1] = min(FGScore, BGScore);
+				m[V[i][j - 1]][t][i][j - 1] = min(FGScore, BGScore);*/
 
 				//tmp_diff += m[V[i][j-1]][t][i][j+1] - m[V[i][j-1]][t_minus_one][i][j+1];
 			}
