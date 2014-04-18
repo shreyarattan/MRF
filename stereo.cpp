@@ -9,6 +9,9 @@
 #include <limits.h>
 #include<string>
 
+#define WINDOW_SIZE 3
+
+
 using namespace std;
 
 int DLIMIT = 255;
@@ -17,15 +20,6 @@ typedef enum {
 	LEFT, RIGHT, UP, DOWN, ALL
 } direction;
 
-
-struct disp_arg{
-	int start;
-	int end;
-	vector<SDoublePlane> &D;
-	SDoublePlane &V;
-	vector<vector<SDoublePlane> > &m;
-	disp_arg(int a, int b, vector<SDoublePlane> &p, SDoublePlane &q, vector<vector<SDoublePlane> > &r):start(a),end(b),D(p), V(q), m(r){};
-};
 
 
 // The simple image class is called SDoublePlane, with each pixel represented as
@@ -64,111 +58,45 @@ double get_messages_from_neighbors(SDoublePlane &m, int row, int col,
 	return sum;
 }
 
-/*void set_disparity(void *obj)
-{
-	disp_arg *A = (disp_arg*)obj;
 
-	double disp_score;
-    double min_score = INT_MAX;
-	int label, t=1;
-	double neighbors_sum;
 
-	for (int i = A->start; i < A->end; i++) {
-		for (int j = 1; j < A->D[0].cols() - 1; j++) {
-			min_score = INT_MAX;
-			label = DLIMIT;
-			for (int d = 0; d < DLIMIT; d++) {
-				neighbors_sum = get_messages_from_neighbors(A->m[d][t], i, j, ALL);
-				disp_score = A->D[d][i][j] + neighbors_sum;
-
-				if (disp_score < min_score) {
-					min_score = disp_score;
-					label = d;
-				}
-			}
-
-			A->V[i][j] = label;
-		}
-	}
-}*/
-
-void set_disparity(int start, int end, vector<SDoublePlane> &D, SDoublePlane &V, vector<vector<SDoublePlane> > &m)
-{
-	//disp_arg *A = (disp_arg*)obj;
-
-	double disp_score;
-    double min_score = INT_MAX;
-	int label, t=1;
-	double neighbors_sum;
-	start = (start < 1)? 1:start;
-	end = (end < (V.rows()-1))?end:(V.rows()-1);
-	cout << start<<","<<end<<endl;
-	for (int i = start; i < end-1; i++) {
-		for (int j = 1; j < D[0].cols() - 1; j++) {
-			min_score = INT_MAX;
-			label = DLIMIT;
-			for (int d = 0; d < DLIMIT; d++) {
-				//cout << i<<","<<j<<endl;
-				neighbors_sum = get_messages_from_neighbors(m[d][t], i, j, ALL);
-				disp_score = D[d][i][j] + neighbors_sum;
-
-				if (disp_score < min_score) {
-					min_score = disp_score;
-					label = d;
-				}
-			}
-
-			V[i][j] = label;
-		}
-	}
-}
-
-void compute_unary_cost(vector<SDoublePlane> &D, SDoublePlane left_image,
-		SDoublePlane right_image, SDoublePlane &disp, int w, int d) {
+void compute_unary_cost(const SDoublePlane &left_image, const SDoublePlane &right_image,
+			vector<SDoublePlane> &D, SDoublePlane &V, int d) {
 	double sum = 0;
+	int w = WINDOW_SIZE;
+	int col = 0;
 
 
 	for (int i = w; i < left_image.rows() - w; i++) {
 		for (int j = w; j < left_image.cols() - w; j++) {
-			for (int u = -w; u < w; u++) {
-				for (int v = -w; v < w; v++) {
-					//cout << i+u<<","<<j+v<<","<<j+v+d<<endl;
-					sum += pow(	left_image[i + u][j + v] - right_image[i + u][j + v + d], 2);
-				}
-			}
-			// find label based on minimum difference
-			disp[i][j] = D[disp[i][j]][i][j] < sum ? disp[i][j] : d;
-			D[d][i][j] = sum;
 
 			sum = 0;
+
+			for (int u = -w; u < w; u++) {
+				for (int v = -w; v < w; v++) {
+
+					if (j + v + d < 0)
+						col = 0;
+					else if (j + v + d> right_image.cols() - 1)
+						col = right_image.cols() - 1;
+					else
+						col = j + v + d;
+
+					sum += pow(	left_image[i+u][j+v] - right_image[i+u][col], 2);
+					//cout<<sum<<endl;
+				}
+			}
+
+			// find label based on minimum difference
+			if(sum < D[V[i][j]][i][j])
+			{
+				V[i][j] = d;
+			}
+			D[d][i][j] = sum;
 		}
 	}
-
 }
 
-void compute_unary_cost(vector<SDoublePlane> &D, SDoublePlane left_image,
-		SDoublePlane right_image, int i, int j, SDoublePlane &disp, int w, int d) {
-	double sum = 0;
-
-
-//	for (int i = w; i < left_image.rows() - w; i++) {
-//		for (int j = w; j < left_image.cols() - w; j++) {
-			for (int u = -w; u < w; u++) {
-				for (int v = -w; v < w; v++) {
-					//cout << i+u<<","<<j+v<<","<<j+v+d<<endl;
-
-					sum += pow(	left_image[i + u][j + v] - right_image[i + u][j + v + d], 2);
-				}
-			}
-			// find label based on minimum difference
-			disp[i][j] = D[disp[i][j]][i][j] < sum ? disp[i][j] : d;
-			D[d][i][j] = sum;
-
-			sum = 0;
-//		}
-//	}
-
-}
 
 double compute_pairwise_cost(int i, int j, SDoublePlane &disp) {
 	int sum = 0;
@@ -180,27 +108,25 @@ double compute_pairwise_cost(int i, int j, SDoublePlane &disp) {
 //	for (int i = 1; i < disp.rows() - 1; i++) {
 //		for (int j = 1; j < disp.cols() - 1; j++) {
 			min_diff = INT_MAX;
-			for (int d = 0; d < DLIMIT; d++) {
+			//for (int d = 0; d < DLIMIT; d++) {
 				sum = 0;
-				sum += pow(d - disp[i][j - 1], 2);
-				sum += pow(d - disp[i][j + 1], 2);
-				sum += pow(d - disp[i + 1][j], 2);
-				sum += pow(d - disp[i - 1][j], 2);
-				if (sum < min_diff) {
+				sum += pow(disp[i][j] - disp[i][j - 1], 2);
+				sum += pow(disp[i][j] - disp[i][j + 1], 2);
+				sum += pow(disp[i][j] - disp[i + 1][j], 2);
+				sum += pow(disp[i][j] - disp[i - 1][j], 2);
+				/*if (sum < min_diff) {
 					min_diff = sum;
 					min_label = d;
-				}
-			}
-	return min_diff;
-//			result[i][j] = min_diff;
-//			disp[i][j] = min_label;
-			//cout<<min_diff<<endl;
-
+				}*/
+			//}
+	return sum;
 }
 
+
+
 void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V,
-		SDoublePlane left_image,
-		SDoublePlane right_image) {
+		const SDoublePlane &left_image,
+		const SDoublePlane &right_image) {
 
 	vector<vector<SDoublePlane> > m;
 	vector<SDoublePlane> tmp;
@@ -226,14 +152,13 @@ void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V,
 	double tmp_diff = 0;
 	double diff = 100;
 
-	cout << "Starting loopy bp \n";
-	cout<<"in propogate"<<endl;
 	int it = 0;
 
-	while (it++ < 3) {
-		for (int i = 0; i < DLIMIT; i++) {
-			compute_unary_cost(D, left_image, right_image, V, 6, i);
+	while (it++ < 1) {
+		for (int d = 0; d < DLIMIT; d++) {
+			compute_unary_cost(left_image, right_image, D, V, d);
 		}
+		//cin.ignore();
 		for (int i = 1; i < probs.rows() - 1; i++) {
 			for (int j = 1; j < probs.cols() - 1; j++) {
 //				compute_unary_cost(D, left_image, right_image, i, j, disp, 1, i);
@@ -332,22 +257,6 @@ void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V,
 	}
 
 
-	int num_threads = probs.rows()/100;
-	num_threads+=probs.rows()%100 > 0? 1:0;
-
-	//thread thrds[10];
-
-	/*vector <thread> thrds;
-	for(int i=0; i<=probs.rows()/100; i++)
-	{
-//		pthread_create(&thrd, NULL, &set_disparity, (void*) &A);
-		thrds.push_back(thread(set_disparity,i*100, i*100+100, D, V, m));
-	}
-
-	for (int i = 0; i < thrds.size(); i++) {
-		thrds[i].join();
-	}*/
-
 	double disp_score;
 	double min_score = INT_MAX;
 	int label;
@@ -371,36 +280,6 @@ void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V,
 	}
 }
 
-
-
-SDoublePlane compute_pairwise_cost(SDoublePlane disp, SDoublePlane &labels, int i, int j) {
-	int sum = 0;
-	int min_diff = INT_MAX;
-	int min_label = DLIMIT;
-
-	SDoublePlane result(disp.rows(), disp.cols());
-
-//	for (int i = 1; i < disp.rows() - 1; i++) {
-//		for (int j = 1; j < disp.cols() - 1; j++) {
-			min_diff = INT_MAX;
-			for (int d = 0; d < DLIMIT; d++) {
-				sum = 0;
-				sum += pow(d - disp[i][j - 1], 2);
-				sum += pow(d - disp[i][j + 1], 2);
-				sum += pow(d - disp[i + 1][j], 2);
-				sum += pow(d - disp[i - 1][j], 2);
-				if (sum < min_diff) {
-					min_diff = sum;
-					min_label = d;
-				}
-			}
-			result[i][j] = min_diff;
-			disp[i][j] = min_label;
-			//cout<<min_diff<<endl;
-//		}
-//	}
-	return result;
-}
 
 
 
@@ -427,21 +306,15 @@ SDoublePlane mrf_stereo(const SDoublePlane &left_image,
 	for (int i = 0; i < DLIMIT; i++)
 		D.push_back(disp);
 
-	for (int iter = 0; iter < 1; iter++) {
-//		for (int i = 0; i < DLIMIT; i++) {
-//			compute_unary_cost(D, left_image, right_image, disp, 6, i);
-//		}
-//		result = compute_pairwise_cost(disp, labels);
-		cout<<"STart"<<endl;
-		propogate_belief(D, disp, left_image, right_image);
-	}
+	cout << "MAX DISPARITY : " << DLIMIT << endl;
+	cout << "WINDOW SIZE : " << WINDOW_SIZE << endl;
+	propogate_belief(D, disp, left_image, right_image);
 
-	/*for(int i=0; i<left_image.rows(); i++)
-	 for(int j=0; j<left_image.cols(); j++)
-	 result[i][j] = rand() % 256;*/
-
-	return labels;
+	return disp;
 }
+
+
+
 
 int main(int argc, char *argv[]) {
 	if (argc != 4 && argc != 3) {
