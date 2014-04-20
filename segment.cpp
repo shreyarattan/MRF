@@ -7,11 +7,16 @@
 #include <math.h>
 #include <algorithm>
 #include <limits.h>
+#include <stdlib.h>
 
 
 #define DLIMIT 2
 #define FG 1
 #define BG 0
+
+double POTTS_COST = 1;
+double BETA = 2e-8;
+
 
 typedef enum {
 	LEFT, RIGHT, UP, DOWN, ALL
@@ -126,6 +131,8 @@ SDoublePlane naive_segment(const SDoublePlane *img, const vector<Point> &fg,
 	// To make things a little easier for you, we'll create separate red, green, and blue
 	//  planes from the input image.
 
+	cout<<"\nStarting Naive Segmentation...\n";
+
 	const SDoublePlane &red_plane = img[0], &green_plane = img[1], blue_plane =
 			img[2];
 	vector<double> m, sig;
@@ -134,12 +141,6 @@ SDoublePlane naive_segment(const SDoublePlane *img, const vector<Point> &fg,
 
 	SDoublePlane result(red_plane.rows(), red_plane.cols());
 	double fg_score = INT_MAX;
-	double min_probability = INT_MAX;
-	double max_probability = INT_MIN;
-
-	probs_table = SDoublePlane(red_plane.rows(), red_plane.cols());
-
-	double beta = 0.97;
 
 	for (int i = 0; i < result.rows(); i++) {
 		for (int j = 0; j < result.cols(); j++) {
@@ -150,26 +151,19 @@ SDoublePlane naive_segment(const SDoublePlane *img, const vector<Point> &fg,
 				result[i][j] = 0;
 			} else if (!find_point(fg, p) && !find_point(bg, p)) {
 
-				fg_score = get_gaussian_probs(red_plane[i][j],
-						green_plane[i][j], blue_plane[i][j], m, sig);
+				fg_score = -get_gaussian(red_plane[i][j], green_plane[i][j],
+						blue_plane[i][j], m, sig);
 
-				if (fg_score > beta)
+				if (fg_score > BETA)
 					result[i][j] = 1;
 				else
 					result[i][j] = 0;
-
-				probs_table[i][j] = (fg_score > beta) ? fg_score : beta;
-
-				if (fg_score > max_probability)
-					max_probability = fg_score;
-				if (fg_score < min_probability)
-					min_probability = fg_score;
 
 			}
 		}
 	}
 
-	cout << "MAX :" << max_probability << ", MIN :" << min_probability << endl;
+	cout<<"Naive Segmentation Complete...\n\n";
 
 	return result;
 }
@@ -221,7 +215,7 @@ void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
 	int t = 1;
 	int t_minus_one = 0;
 	int source_label = FG;
-	double potts_cost = 1e-3;
+	double potts_cost = POTTS_COST;
 
 	double min_score = 0;
 	double tmp_score = 0;
@@ -234,7 +228,7 @@ void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
 
 	int it = 0;
 
-	while (it++ < 5) {
+	while (it++ < 10) {
 		cout<<"Iteration : "<<it<<"\n------------------\n";
 
 		for (int i = 1; i < probs.rows() - 1; i++) {
@@ -432,8 +426,6 @@ SDoublePlane mrf_segment(const SDoublePlane *img, const vector<Point> &fg,
 
 	calc_mean(red_plane, green_plane, blue_plane, m, sig, fg);
 
-	double beta = 1.11552e-15;
-
 	for (int i = 0; i < result.rows(); i++) {
 		for (int j = 0; j < result.cols(); j++) {
 			Point p(i, j);
@@ -453,31 +445,19 @@ SDoublePlane mrf_segment(const SDoublePlane *img, const vector<Point> &fg,
 				if(isinf(fg_energy[i][j]))
 					fg_energy[i][j] = INT_MAX;
 
-				bg_energy[i][j] = beta;
+				bg_energy[i][j] = BETA;
 			}
 
 			result[i][j] = (fg_energy[i][j] <= bg_energy[i][j])?FG:BG;
-			cout<<fg_energy[i][j]<<","<<bg_energy[i][j]<<","<<result[i][j]<<endl;
 		}
 	}
-
-
-//	double sum = 0;
-//	for(int i=0; i<result.rows(); i++)
-//		for(int j=0; j<result.cols(); j++)
-//			if(fg_energy[i][j] < INT_MAX)
-//				sum += fg_energy[i][j];
-//
-//	sum = sum/(fg_energy.rows()*fg_energy.cols());
-//	cout<<sum<<endl;
-//	cin.ignore();
 
 	D.push_back(bg_energy);
 	D.push_back(fg_energy);
 
-	//propogate_belief(D, result);
+	propogate_belief(D, result);
 
-	cout << "MRF Done" << endl;
+	cout << "---Done---" << endl;
 
 	return result;
 }
@@ -524,12 +504,24 @@ void output_segmentation(const SDoublePlane *img, const SDoublePlane &labels,
 
 
 int main(int argc, char *argv[]) {
-	if (argc != 3) {
-		cerr << "usage: " << argv[0] << " image_file seeds_file" << endl;
+	if (argc < 3) {
+		cerr << "usage: " << argv[0] << " image_file seeds_file [potts cost] [beta]" << endl;
 		return 1;
 	}
 
 	string input_filename1 = argv[1], seeds_file = argv[2];
+
+	if(argc > 3 )
+		POTTS_COST = atof(argv[3]);
+
+	if(argc == 5)
+		BETA = atof(argv[4]);
+
+	cout<<"Segment\n";
+	cout<<"Input :"<<input_filename1<<"\nSeeds :"<<seeds_file<<"\n";
+	cout<<"POTTS CONST : "<<POTTS_COST<<endl;
+	cout<<"BETA CONST  : "<<BETA<<endl;
+
 
 	// read in images and gt
 	SDoublePlane image_rgb[3], seeds_rgb[3];
@@ -552,13 +544,12 @@ int main(int argc, char *argv[]) {
 		}
 
 	// do naive segmentation
-
-//	SDoublePlane labels = naive_segment(image_rgb, fg_pixels, bg_pixels);
-//	output_segmentation(image_rgb, labels, "naive_segment_result");
+	SDoublePlane labels1 = naive_segment(image_rgb, fg_pixels, bg_pixels);
+	output_segmentation(image_rgb, labels1, "naive_segment_result");
 
 	// do mrf segmentation
-	SDoublePlane labels = mrf_segment(image_rgb, fg_pixels, bg_pixels);
-	output_segmentation(image_rgb, labels, "mrf_segment_result");
+	SDoublePlane labels2 = mrf_segment(image_rgb, fg_pixels, bg_pixels);
+	output_segmentation(image_rgb, labels2, "mrf_segment_result");
 
 	return 0;
 }
