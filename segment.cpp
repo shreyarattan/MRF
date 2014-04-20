@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <limits.h>
 
+
+#define DLIMIT 2
 #define FG 1
 #define BG 0
 
@@ -34,7 +36,7 @@ using namespace std;
 
 class Point {
 public:
-	Point() {
+	Point() :row(0), col(0) {
 	}
 	Point(int _r, int _c) :
 			row(_r), col(_c) {
@@ -42,7 +44,7 @@ public:
 	int row, col;
 };
 
-bool find_point(const vector<Point> fg, Point p) {
+bool find_point(const vector<Point> &fg, Point p) {
 	for (vector<Point>::const_iterator iter = fg.begin(); iter != fg.end();
 			++iter)
 		if (iter->col == p.col && iter->row == p.row) {
@@ -51,9 +53,10 @@ bool find_point(const vector<Point> fg, Point p) {
 	return false;
 }
 
-void calc_mean(SDoublePlane red_plane, SDoublePlane green_plane,
-		SDoublePlane blue_plane, vector<double>&m, vector<double>&sig,
+void calc_mean(const SDoublePlane &red_plane, const SDoublePlane &green_plane,
+		const SDoublePlane &blue_plane, vector<double>&m, vector<double>&sig,
 		const vector<Point> &fg) {
+
 	double sum_red = 0, sum_green = 0, sum_blue = 0;
 	for (int i = 0; i < red_plane.rows(); i++)
 		for (int j = 0; j < red_plane.cols(); j++) {
@@ -107,7 +110,13 @@ double get_gaussian(double red_val, double green_val, double blue_val,
 			* -(pow(blue_val - m[2], 2) / (pow(sig[2], 2))));
 }
 
+
+
+
 SDoublePlane probs_table;
+
+
+
 
 SDoublePlane naive_segment(const SDoublePlane *img, const vector<Point> &fg,
 		const vector<Point> &bg) {
@@ -165,24 +174,37 @@ SDoublePlane naive_segment(const SDoublePlane *img, const vector<Point> &fg,
 	return result;
 }
 
-double get_messages_from_neighbors(SDoublePlane m, int row, int col,
+
+
+double get_messages_from_neighbors(SDoublePlane &m, int row, int col,
 		direction dir) {
 	double sum = 0;
+	int n = 0;
 
-	if (dir != LEFT)
+	if (dir != LEFT) {
 		sum += m[row][col - 1];
+		n++;
+	}
 
-	if (dir != RIGHT)
+	if (dir != RIGHT) {
 		sum += m[row][col + 1];
+		n++;
+	}
 
-	if (dir != UP)
+	if (dir != UP) {
 		sum += m[row - 1][col];
+		n++;
+	}
 
-	if (dir != DOWN)
+	if (dir != DOWN) {
 		sum += m[row + 1][col];
+		n++;
+	}
 
-	return sum;
+	return (sum/n);
 }
+
+
 
 void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
 	vector<vector<SDoublePlane> > m;
@@ -198,124 +220,199 @@ void propogate_belief(vector<SDoublePlane> D, SDoublePlane &V) {
 
 	int t = 1;
 	int t_minus_one = 0;
-	int target_label = BG;
 	int source_label = FG;
-	int potts_cost = 1;
+	double potts_cost = 1e-3;
 
-	double FGScore = 0;
-	double BGScore = 0;
+	double min_score = 0;
+	double tmp_score = 0;
+	double disp_score = 0;
 	double match_score = 0;
-	double no_match_score = 0;
 	double neighbors_sum = 0;
 	//double src_nbrs_sum = 0;
-	double tmp_diff = 0;
-	double diff = 100;
 
 	cout << "Starting loopy bp \n";
 
 	int it = 0;
 
-	while (it++ < 3) {
-		for (int i = 1; i < probs.rows() - 1; i++) {
-			for (int j = 1; j < probs.cols() - 1; j++) {
-
-				target_label = V[i][j + 1];
-				source_label = V[i][j];
-
-				neighbors_sum = get_messages_from_neighbors(
-						m[target_label][t_minus_one], i, j, RIGHT);
-				match_score = D[target_label][i][j] + neighbors_sum;
-
-				neighbors_sum = get_messages_from_neighbors(
-						m[source_label][t_minus_one], i, j, RIGHT);
-				no_match_score = potts_cost + D[source_label][i][j]
-						+ neighbors_sum;
-
-				m[target_label][t][i][j + 1] = min(match_score, no_match_score);
-
-				//if pixel was FG
-				/*neighbors_sum = get_messages_from_neighbors(m[FG][t_minus_one], i, j, RIGHT);
-
-				 FGScore = D[FG][i][j] +
-				 pow(FG - V[i][j+1], 2) +
-				 neighbors_sum;
-
-				 neighbors_sum = get_messages_from_neighbors(m[BG][t_minus_one], i, j, RIGHT);
-
-				 BGScore = D[BG][i][j] +
-				 pow(BG - V[i][j+1], 2) +
-				 neighbors_sum;
-
-				 m[V[i][j+1]][t][i][j+1] = min(FGScore, BGScore);*/
-
-				//tmp_diff += m[V[i][j+1]][t][i][j+1] - m[V[i][j+1]][t_minus_one][i][j+1];
-			}
-		}
-
-		cout << "Messages sent right\n";
-
-		//diff = tmp_diff/(probs.rows()*probs.cols());
-		//tmp_diff = 0;
+	while (it++ < 5) {
+		cout<<"Iteration : "<<it<<"\n------------------\n";
 
 		for (int i = 1; i < probs.rows() - 1; i++) {
 			for (int j = probs.cols() - 1; j > 0; j--) {
 
-				 target_label = V[i][j-1];
-				 source_label = V[i][j];
+				min_score = INT_MAX;
+				source_label = 0;
 
-				 neighbors_sum = get_messages_from_neighbors(m[target_label][t_minus_one], i, j, LEFT);
-				 match_score = D[target_label][i][j] + neighbors_sum;
+				for (int qi = 0; qi < DLIMIT; qi++) {
+					neighbors_sum = get_messages_from_neighbors(
+							m[qi][t_minus_one], i, j, LEFT);
+					tmp_score = D[qi][i][j] + neighbors_sum;
 
-				 neighbors_sum = get_messages_from_neighbors(m[source_label][t_minus_one], i, j, LEFT);
-				 no_match_score = potts_cost + D[source_label][i][j] + neighbors_sum;
+					if (tmp_score < min_score) {
+						min_score = tmp_score;
+						source_label = qi;
+					}
+				}
 
-				 m[target_label][t][i][j-1] = min(match_score, no_match_score);
+				for (int qj = 0; qj < DLIMIT; qj++) {
+					if (qj == source_label) {
+						m[qj][t][i][j - 1] = min_score;
+						continue;
+					}
 
-				//if pixel was FG
-				/*neighbors_sum = get_messages_from_neighbors(m[FG][t_minus_one],
-						i, j, LEFT);
+					neighbors_sum = get_messages_from_neighbors(
+							m[qj][t_minus_one], i, j, LEFT);
+					match_score = D[qj][i][j] + neighbors_sum;
 
-				FGScore = D[FG][i][j] + pow(FG - V[i][j - 1], 2)
-						+ neighbors_sum;
+					m[qj][t][i][j - 1] = min(match_score,
+							min_score + potts_cost);
 
-				neighbors_sum = get_messages_from_neighbors(m[BG][t_minus_one],
-						i, j, LEFT);
-
-				BGScore = D[BG][i][j] + pow(BG - V[i][j - 1], 2)
-						+ neighbors_sum;
-
-				m[V[i][j - 1]][t][i][j - 1] = min(FGScore, BGScore);*/
-
-				//tmp_diff += m[V[i][j-1]][t][i][j+1] - m[V[i][j-1]][t_minus_one][i][j+1];
+				}
 			}
 		}
 
-		cout << "Messages sent left\n";
+		cout << "Messages sent left...\n";
 
-		//tmp_diff = tmp_diff/(probs.rows()*probs.cols());
-		//diff = (diff + tmp_diff)/2;
+		for (int i = 1; i < probs.rows() - 1; i++) {
+			for (int j = 1; j < probs.cols() - 1; j++) {
 
-		cout << "Energy diff :" << diff << endl;
+				min_score = INT_MAX;
+				source_label = 0;
+
+				for (int qi = 0; qi < DLIMIT; qi++) {
+					neighbors_sum = get_messages_from_neighbors(
+							m[qi][t_minus_one], i, j, RIGHT);
+					tmp_score = D[qi][i][j] + neighbors_sum;
+
+					if (tmp_score < min_score) {
+						min_score = tmp_score;
+						source_label = qi;
+					}
+				}
+
+				for (int qj = 0; qj < DLIMIT; qj++) {
+
+					if (qj == source_label) {
+						m[qj][t][i][j + 1] = min_score;
+						continue;
+					}
+
+					neighbors_sum = get_messages_from_neighbors(
+							m[qj][t_minus_one], i, j, RIGHT);
+					match_score = D[qj][i][j] + neighbors_sum;
+
+					m[qj][t][i][j + 1] = min(match_score,
+							min_score + potts_cost);
+
+				}
+			}
+		}
+
+		cout << "Messages sent right...\n";
+
+		for (int j = 1; j < probs.cols() - 1; j++) {
+			for (int i = probs.rows() - 2; i > 0; i--) {
+
+				min_score = INT_MAX;
+				source_label = 0;
+
+				for (int qi = 0; qi < DLIMIT; qi++) {
+					neighbors_sum = get_messages_from_neighbors(
+							m[qi][t_minus_one], i, j, UP);
+					tmp_score = D[qi][i][j] + neighbors_sum;
+
+					if (tmp_score < min_score) {
+						min_score = tmp_score;
+						source_label = qi;
+					}
+				}
+
+				for (int qj = 0; qj < DLIMIT; qj++) {
+
+					if (qj == source_label) {
+						m[qj][t][i - 1][j] = min_score;
+						continue;
+					}
+
+					neighbors_sum = get_messages_from_neighbors(
+							m[qj][t_minus_one], i, j, UP);
+					match_score = D[qj][i][j] + neighbors_sum;
+
+					m[qj][t][i - 1][j] = min(match_score,
+							min_score + potts_cost);
+
+				}
+			}
+		}
+
+		cout << "Messages sent up...\n";
+
+		for (int j = 1; j < probs.cols() - 1; j++) {
+			for (int i = 1; i < probs.rows() - 1; i++) {
+
+				min_score = INT_MAX;
+				source_label = 0;
+
+				for (int qi = 0; qi < DLIMIT; qi++) {
+					neighbors_sum = get_messages_from_neighbors(
+							m[qi][t_minus_one], i, j, DOWN);
+					tmp_score = D[qi][i][j] + neighbors_sum;
+
+					if (tmp_score < min_score) {
+						min_score = tmp_score;
+						source_label = qi;
+					}
+				}
+
+				for (int qj = 0; qj < DLIMIT; qj++) {
+
+					if (qj == source_label) {
+						m[qj][t][i + 1][j] = min_score;
+						continue;
+					}
+
+					neighbors_sum = get_messages_from_neighbors(
+							m[qj][t_minus_one], i, j, DOWN);
+					match_score = D[qj][i][j] + neighbors_sum;
+
+					m[qj][t][i + 1][j] = min(match_score,
+							min_score + potts_cost);
+
+				}
+			}
+		}
+		cout << "Messages sent down...\n";
+
+		cout << "------------------\n";
 
 		int tmp = t;
 		t = t_minus_one;
-		t_minus_one = t;
+		t_minus_one = tmp;
 	}
+
+	cout << "Updating Labels...\n";
 
 	for (int i = 1; i < probs.rows() - 1; i++) {
 		for (int j = 1; j < probs.cols() - 1; j++) {
+			min_score = INT_MAX;
 
-			neighbors_sum = get_messages_from_neighbors(m[FG][t], i, j, ALL);
-			FGScore = D[FG][i][j] + neighbors_sum;
+			for (int d = 0; d < DLIMIT; d++) {
+				neighbors_sum = get_messages_from_neighbors(m[d][t], i, j, ALL);
 
-			neighbors_sum = get_messages_from_neighbors(m[BG][t], i, j, ALL);
-			BGScore = D[BG][i][j] + neighbors_sum;
+				disp_score = D[d][i][j] + neighbors_sum;
 
-			V[i][j] = FGScore < BGScore ? FG : BG;
+				if (disp_score < min_score) {
+					min_score = disp_score;
+					V[i][j] = d;
+				}
+			}
 		}
 	}
-
 }
+
+
+
+
 
 SDoublePlane mrf_segment(const SDoublePlane *img, const vector<Point> &fg,
 		const vector<Point> &bg) {
@@ -326,56 +423,67 @@ SDoublePlane mrf_segment(const SDoublePlane *img, const vector<Point> &fg,
 	SDoublePlane bg_energy(img->rows(), img->cols());
 	SDoublePlane result(img->rows(), img->cols());
 	vector<SDoublePlane> D;
-	SDoublePlane V;
+
+	cout<<"Starting Segmentation (MRF with BP)\n------------------------------------\n";
 
 	const SDoublePlane &red_plane = img[0], &green_plane = img[1], blue_plane =
 			img[2];
 	vector<double> m, sig;
-//
-//    double beta = 2e-009;
-//
+
 	calc_mean(red_plane, green_plane, blue_plane, m, sig, fg);
 
-	double fg_score = INT_MAX;
-	double min_probability = INT_MAX;
-	double max_probability = INT_MIN;
-
-	probs_table = SDoublePlane(red_plane.rows(), red_plane.cols());
-
-	double beta = 1e-008;
+	double beta = 1.11552e-15;
 
 	for (int i = 0; i < result.rows(); i++) {
 		for (int j = 0; j < result.cols(); j++) {
 			Point p(i, j);
 			if (find_point(fg, p)) {
-				result[i][j] = 1;
 				fg_energy[i][j] = 0;
 				bg_energy[i][j] = INT_MAX;
 			} else if (find_point(bg, p)) {
-				result[i][j] = 0;
 				bg_energy[i][j] = 0;
 				fg_energy[i][j] = INT_MAX;
 			} else if (!find_point(fg, p) && !find_point(bg, p)) {
-				fg_energy[i][j] = -(get_gaussian(red_plane[i][j],
-						green_plane[i][j], blue_plane[i][j], m, sig));
-				bg_energy[i][j] = beta;
+				fg_energy[i][j] = -get_gaussian(red_plane[i][j],
+						green_plane[i][j], blue_plane[i][j], m, sig);
 
-				result[i][j] = fg_energy[i][j] < bg_energy[i][j] ? FG : BG;
+				if(isnan(fg_energy[i][j]))
+					fg_energy[i][j] = 0;
+
+				if(isinf(fg_energy[i][j]))
+					fg_energy[i][j] = INT_MAX;
+
+				bg_energy[i][j] = beta;
 			}
+
+			result[i][j] = (fg_energy[i][j] <= bg_energy[i][j])?FG:BG;
+			cout<<fg_energy[i][j]<<","<<bg_energy[i][j]<<","<<result[i][j]<<endl;
 		}
 	}
+
+
+//	double sum = 0;
+//	for(int i=0; i<result.rows(); i++)
+//		for(int j=0; j<result.cols(); j++)
+//			if(fg_energy[i][j] < INT_MAX)
+//				sum += fg_energy[i][j];
+//
+//	sum = sum/(fg_energy.rows()*fg_energy.cols());
+//	cout<<sum<<endl;
+//	cin.ignore();
 
 	D.push_back(bg_energy);
 	D.push_back(fg_energy);
 
-	propogate_belief(D, result);
-
-	//result = loopy_belief(v, probs_table);
+	//propogate_belief(D, result);
 
 	cout << "MRF Done" << endl;
 
 	return result;
 }
+
+
+
 
 // Take in an input image and a binary segmentation map. Use the segmentation map to split the 
 //  input image into foreground and background portions, and then save each one as a separate image.
@@ -410,6 +518,10 @@ void output_segmentation(const SDoublePlane *img, const SDoublePlane &labels,
 	SImageIO::write_png_file((fname + "_bg.png").c_str(), img_bg[0], img_bg[1],
 			img_bg[2]);
 }
+
+
+
+
 
 int main(int argc, char *argv[]) {
 	if (argc != 3) {

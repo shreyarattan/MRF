@@ -126,6 +126,27 @@ void compute_unary_cost(const SDoublePlane &left_image, const SDoublePlane &righ
 
 
 
+double compute_energy_difference(vector<vector<SDoublePlane> > &m)
+{
+	double diff = 0;
+	int t = 1;
+
+	for(int d = 0; d < DLIMIT; d++)
+	{
+		for(int i =0; i<m[d][t].rows(); i++)
+		{
+			for(int j =0; j<m[d][t].cols(); j++)
+			{
+				diff += fabs(m[d][t][i][j] - m[d][t-1][i][j]);
+			}
+		}
+	}
+
+	diff = diff / (2*DLIMIT * m[0][0].rows() * m[0][0].cols());
+
+	return diff;
+}
+
 
 
 void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V,
@@ -149,25 +170,25 @@ void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V,
 
 	int t = 1;
 	int t_minus_one = 0;
-	int target_label = 0;
 	int source_label = DLIMIT;
 	int potts_cost = DLIMIT/2;
 
 
 	double tmp_score = 0;
 	double match_score = 0;
-	double no_match_score = 0;
 	double neighbors_sum = 0;
 	double disp_score;
 	double min_score = INT_MAX;
 	double alpha = 0.5;
 
+	double old_energy = INT_MAX;
+	double new_energy = INT_MAX;
 
-	int it = 0;
+	int it = 1;
 
-	while (it++ < 5) {
+	while (1) {
 
-		cout<<"Iteration : "<<it<<"\n------------------\n";
+		cout<<"Iteration : "<<it<<"\nEnergy Cost : "<<new_energy<<"\n------------------\n";
 
 		for (int i = 1; i < probs.rows() - 1; i++) {
 			for (int j = probs.cols() - 1; j > 0; j--) {
@@ -320,10 +341,18 @@ void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V,
 
 		cout<<"------------------\n";
 
+		new_energy = compute_energy_difference(m);
+
+		if(new_energy > 0.90*old_energy)
+			break;
+
+		old_energy = new_energy;
 
 		int tmp = t;
 		t = t_minus_one;
-		t_minus_one = t;
+		t_minus_one = tmp;
+		it++;
+
 	}
 
 
@@ -351,6 +380,9 @@ void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V,
 
 SDoublePlane mrf_stereo(const SDoublePlane &left_image,
 		const SDoublePlane &right_image) {
+
+	cout<<"Starting Stereo (MRF with BP)\n------------------\n";
+
 	// implement this in step 4...
 	//  this placeholder just returns a random disparity map
 	SDoublePlane result(left_image.rows(), left_image.cols());
