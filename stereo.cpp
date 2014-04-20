@@ -33,10 +33,10 @@ struct disp_arg {
 // The simple image class is called SDoublePlane, with each pixel represented as
 // a double (floating point) type. This means that an SDoublePlane can represent
 // values outside the range 0-255, and thus can represent gradient magnitudes,
-// harris corner scores, etc. 
+// harris corner scores, etc.
 //
 // The SImageIO class supports reading and writing PNG files. It will read in
-// a color PNG file, convert it to grayscale, and then return it to you in 
+// a color PNG file, convert it to grayscale, and then return it to you in
 // an SDoublePlane. The values in this SDoublePlane will be in the range [0,255].
 //
 // To write out an image, call write_png_file(). It takes three separate planes,
@@ -150,33 +150,45 @@ void compute_unary_cost(vector<SDoublePlane> &D, const SDoublePlane &left_image,
 
 }
 
-double compute_pairwise_cost(int i, int j, SDoublePlane &disp) {
-	int sum = 0;
-	int min_diff = INT_MAX;
-	int min_label = DLIMIT;
+void compute_message(vector<SDoublePlane> &D, vector<vector<SDoublePlane> > &m,
+		int i, int j, int t, int t_minus_one, direction dir) {
 
-//	SDoublePlane result(disp.rows(), disp.cols());
+	int target_label;
+	int source_label;
+	double min_score = INT_MAX;
+	int min_source = 0;
+	double neighbors_sum = 0;
 
-//	for (int i = 1; i < disp.rows() - 1; i++) {
-//		for (int j = 1; j < disp.cols() - 1; j++) {
-	min_diff = INT_MAX;
+	for (source_label = 0; source_label < DLIMIT; source_label++) {
+		neighbors_sum = get_messages_from_neighbors(
+				m[source_label][t_minus_one], i, j, dir);
+		if (min_score > neighbors_sum + D[source_label][i][j]) {
 
-	for (int d = 0; d < DLIMIT; d++) {
-		sum = 0;
-		sum += pow(d - disp[i][j - 1], 2);
-		sum += pow(d - disp[i][j + 1], 2);
-		sum += pow(d - disp[i + 1][j], 2);
-		sum += pow(d - disp[i - 1][j], 2);
-		if (sum < min_diff) {
-			min_diff = sum;
-			min_label = d;
+			min_score = neighbors_sum + D[source_label][i][j];
+			min_source = source_label;
 		}
 	}
-	return min_diff;
-//			result[i][j] = min_diff;
-//			disp[i][j] = min_label;
-	//cout<<min_diff<<endl;
 
+	for (target_label = 0; target_label < DLIMIT; target_label++) {
+		if (target_label == min_source)
+			continue;
+		else {
+			neighbors_sum = get_messages_from_neighbors(
+					m[source_label][t_minus_one], i, j, dir);
+			if (dir == RIGHT)
+			m[target_label][t][i][j + 1] = min(D[target_label][i][j],
+					min_score + pow(min_source - target_label, 2));
+			if (dir == LEFT)
+				m[target_label][t][i][j - 1] = min(D[target_label][i][j],
+						min_score + pow(min_source - target_label, 2));
+			if (dir == UP)
+				m[target_label][t][i - 1][j] = min(D[target_label][i][j],
+						min_score + pow(min_source - target_label, 2));
+			if (dir == DOWN)
+				m[target_label][t][i + 1][j] = min(D[target_label][i][j],
+						min_score + pow(min_source - target_label, 2));
+		}
+	}
 }
 
 void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V,
@@ -204,33 +216,13 @@ void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V,
 
 	cout << "Starting loopy bp \n";
 	int it = 0;
-	compute_unary_cost(D, left_image, right_image, V, 3);
-	while (it++ < 1) {
+	compute_unary_cost(D, left_image, right_image, V, 2);
+	while (it++ < 10) {
 
 		cout << "iterations " << it << endl;
 		for (int i = 1; i < probs.rows() - 1; i++) {
 			for (int j = probs.cols() - 1; j > 0; j--) {
-				double min_score = INT_MAX;
-
-
-				for (source_label = 0; source_label < DLIMIT - 1; source_label++) {
-					neighbors_sum = get_messages_from_neighbors(
-							m[source_label][t_minus_one], i, j, LEFT);
-					min_score = min(min_score,
-							neighbors_sum + D[source_label][i][j]);
-				}
-
-				for (target_label = 0; target_label < DLIMIT - 1;
-						target_label++) {
-					if (target_label == source_label) {
-						neighbors_sum = get_messages_from_neighbors(
-								m[source_label][t_minus_one], i, j, LEFT);
-						m[target_label][t][i][j - 1] = neighbors_sum
-								+ D[source_label][i][j];
-					} else {
-						m[target_label][t][i][j - 1] = min_score + C;
-					}
-				}
+				compute_message(D, m, i, j, t, t_minus_one, LEFT);
 			}
 		}
 		//		cout<<m[target_label].size()<<endl;
@@ -238,30 +230,27 @@ void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V,
 
 		for (int i = 1; i < probs.rows() - 1; i++) {
 			for (int j = 1; j < probs.cols() - 1; j++) {
-				double min_score = INT_MAX;
-
-				for (source_label = 0; source_label < DLIMIT - 1; source_label++) {
-					neighbors_sum = get_messages_from_neighbors(
-							m[source_label][t_minus_one], i, j, RIGHT);
-					min_score = min(min_score,
-							neighbors_sum + D[source_label][i][j]);
-				}
-
-				for (target_label = 0; target_label < DLIMIT - 1;
-						target_label++) {
-					if (target_label == source_label) {
-						neighbors_sum = get_messages_from_neighbors(
-								m[source_label][t_minus_one], i, j, RIGHT);
-						m[target_label][t][i][j + 1] = neighbors_sum
-								+ D[source_label][i][j];
-					} else {
-						m[target_label][t][i][j + 1] = min_score + C;
-					}
-				}
+				compute_message(D, m, i, j, t, t_minus_one, RIGHT);
 			}
 		}
 
 		cout << "Messages sent right\n";
+
+		for (int j = 1; j < probs.cols() - 1; j++) {
+			for (int i = 1; i < probs.rows() - 1; i++) {
+				compute_message(D, m, i, j, t, t_minus_one, DOWN);
+			}
+		}
+
+		cout << "Messages sent down\n";
+
+		for (int j = 1; j < probs.cols() - 1; j++) {
+			for (int i = probs.rows() - 2; i > 0; i--) {
+				compute_message(D, m, i, j, t, t_minus_one, UP);
+			}
+		}
+//
+		cout << "Messages sent up\n";
 
 		int tmp = t;
 		t = t_minus_one;
@@ -285,7 +274,7 @@ void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V,
 					label = d;
 				}
 			}
-			V[i][j] = 5* label;
+			V[i][j] = 256/DLIMIT * label;
 		}
 	}
 }
