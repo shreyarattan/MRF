@@ -142,7 +142,7 @@ void compute_unary_cost(vector<SDoublePlane> &D, const SDoublePlane &left_image,
 				// find label based on minimum difference
 //			disp[i][j] = D[disp[i][j]][i][j] <= sum ? disp[i][j] : d;
 //			cout<<disp[i][j]<<endl;
-				D[d][i][j] = sum / w * w;
+				D[d][i][j] = sum / w * w * 4;
 			}
 
 		}
@@ -153,13 +153,11 @@ void compute_unary_cost(vector<SDoublePlane> &D, const SDoublePlane &left_image,
 void compute_message(vector<SDoublePlane> &D, vector<vector<SDoublePlane> > &m,
 		int i, int j, int t, int t_minus_one, direction dir) {
 
-	int target_label;
-	int source_label;
 	double min_score = INT_MAX;
 	int min_source = 0;
 	double neighbors_sum = 0;
 
-	for (source_label = 0; source_label < DLIMIT; source_label++) {
+	for (int source_label = 0; source_label < 2; source_label++) {
 		neighbors_sum = get_messages_from_neighbors(
 				m[source_label][t_minus_one], i, j, dir);
 		if (min_score > neighbors_sum + D[source_label][i][j]) {
@@ -169,26 +167,38 @@ void compute_message(vector<SDoublePlane> &D, vector<vector<SDoublePlane> > &m,
 		}
 	}
 
-	for (target_label = 0; target_label < DLIMIT; target_label++) {
-		if (target_label == min_source)
-			continue;
-		else {
-			neighbors_sum = get_messages_from_neighbors(
-					m[source_label][t_minus_one], i, j, dir);
+	for (int target_label = 0; target_label < 2; target_label++) {
+			if (target_label == min_source) {
+//				if (it == 2) cin.ignore();
+//			cout << "match" << min_score<<endl;
 			if (dir == RIGHT)
-			m[target_label][t][i][j + 1] = min(D[target_label][i][j],
-					min_score + pow(min_source - target_label, 2));
+				m[min_source][t][i][j + 1] = min_score;
 			if (dir == LEFT)
-				m[target_label][t][i][j - 1] = min(D[target_label][i][j],
-						min_score + pow(min_source - target_label, 2));
+				m[min_source][t][i][j - 1] = min_score;
 			if (dir == UP)
-				m[target_label][t][i - 1][j] = min(D[target_label][i][j],
-						min_score + pow(min_source - target_label, 2));
+				m[min_source][t][i - 1][j] = min_score;
 			if (dir == DOWN)
-				m[target_label][t][i + 1][j] = min(D[target_label][i][j],
-						min_score + pow(min_source - target_label, 2));
+				m[min_source][t][i + 1][j] = min_score;
+
+			}
+			else {
+//				cout << "no match" << endl;
+				neighbors_sum = get_messages_from_neighbors(
+						m[target_label][t_minus_one], i, j, dir);
+				if (dir == RIGHT)
+				m[target_label][t][i][j + 1] = min(neighbors_sum + D[target_label][i][j],
+						min_score + pow(target_label - min_source, 2));
+				if (dir == LEFT)
+					m[target_label][t][i][j - 1] = min(neighbors_sum + D[target_label][i][j],
+							min_score + pow(target_label - min_source, 2));
+				if (dir == UP)
+					m[target_label][t][i - 1][j] = min(neighbors_sum + D[target_label][i][j],
+							min_score + pow(target_label - min_source, 2));
+				if (dir == DOWN)
+					m[target_label][t][i + 1][j] = min(neighbors_sum + D[target_label][i][j],
+							min_score + pow(target_label - min_source, 2));
+			}
 		}
-	}
 }
 
 void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V,
@@ -207,17 +217,13 @@ void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V,
 
 	int t = 1;
 	int t_minus_one = 0;
-	int target_label = 0;
-	int source_label = DLIMIT;
-	double no_match_score = INT_MAX;
 	double neighbors_sum = 0;
-	int C = 1;
 	//double src_nbrs_sum = 0;
 
 	cout << "Starting loopy bp \n";
 	int it = 0;
-	compute_unary_cost(D, left_image, right_image, V, 2);
-	while (it++ < 10) {
+	compute_unary_cost(D, left_image, right_image, V, 5);
+	while (it++ < 5) {
 
 		cout << "iterations " << it << endl;
 		for (int i = 1; i < probs.rows() - 1; i++) {
@@ -254,7 +260,7 @@ void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V,
 
 		int tmp = t;
 		t = t_minus_one;
-		t_minus_one = t;
+		t_minus_one = tmp;
 
 	}
 
@@ -272,9 +278,10 @@ void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V,
 				if (disp_score < min_score) {
 					min_score = disp_score;
 					label = d;
+					V[i][j] = label;
 				}
 			}
-			V[i][j] = 256/DLIMIT * label;
+
 		}
 	}
 }
@@ -318,7 +325,11 @@ SDoublePlane mrf_stereo(const SDoublePlane &left_image,
 	/*for(int i=0; i<left_image.rows(); i++)
 	 for(int j=0; j<left_image.cols(); j++)
 	 result[i][j] = rand() % 256;*/
-
+	for(int i = 0; i < left_image.rows(); i++) {
+		for (int j = 0; j < left_image.cols(); j++) {
+			disp[i][j] = 3* disp[i][j];
+		}
+	}
 	return disp;
 }
 

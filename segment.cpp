@@ -181,7 +181,7 @@ double get_messages_from_neighbors(SDoublePlane &m, int row, int col,
 	if (dir != DOWN)
 		sum += m[row + 1][col];
 
-	return sum;
+	return sum/4;
 }
 
 void compute_message(vector<SDoublePlane> &D, vector<vector<SDoublePlane> > &m,
@@ -205,6 +205,7 @@ void compute_message(vector<SDoublePlane> &D, vector<vector<SDoublePlane> > &m,
 
 	for (target_label = 0; target_label < 2; target_label++) {
 			if (target_label == min_source) {
+//				if (it == 2) cin.ignore();
 //			cout << "match" << min_score<<endl;
 			if (dir == RIGHT)
 				m[min_source][t][i][j + 1] = min_score;
@@ -214,7 +215,7 @@ void compute_message(vector<SDoublePlane> &D, vector<vector<SDoublePlane> > &m,
 				m[min_source][t][i - 1][j] = min_score;
 			if (dir == DOWN)
 				m[min_source][t][i + 1][j] = min_score;
-				continue;
+
 			}
 			else {
 //				cout << "no match" << endl;
@@ -222,16 +223,16 @@ void compute_message(vector<SDoublePlane> &D, vector<vector<SDoublePlane> > &m,
 						m[target_label][t_minus_one], i, j, dir);
 				if (dir == RIGHT)
 				m[target_label][t][i][j + 1] = min(neighbors_sum + D[target_label][i][j],
-						min_score + pow(min_source - target_label, 2));
+						min_score + 25e-0);
 				if (dir == LEFT)
 					m[target_label][t][i][j - 1] = min(neighbors_sum + D[target_label][i][j],
-							min_score + pow(min_source - target_label, 2));
+							min_score + 25e-0);
 				if (dir == UP)
 					m[target_label][t][i - 1][j] = min(neighbors_sum + D[target_label][i][j],
-							min_score + pow(min_source - target_label, 2));
+							min_score + 25e-0);
 				if (dir == DOWN)
 					m[target_label][t][i + 1][j] = min(neighbors_sum + D[target_label][i][j],
-							min_score + pow(min_source - target_label, 2));
+							min_score + 25e-0);
 			}
 		}
 }
@@ -263,7 +264,7 @@ void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V) {
 	while (it++ < 5) {
 		for (int i = 1; i < probs.rows() - 1; i++) {
 			for (int j = 1; j < probs.cols() - 1; j++) {
-
+//				if (it == 2) cin.ignore();
 				compute_message(D, m, i, j, t, t_minus_one, RIGHT);
 
 			}
@@ -302,25 +303,23 @@ void propogate_belief(vector<SDoublePlane> &D, SDoublePlane &V) {
 
 		int tmp = t;
 		t = t_minus_one;
-		t_minus_one = t;
+		t_minus_one = tmp;
 	}
 
 	double disp_score;
 	double min_score = INT_MAX;
-	int label;
 	for (int i = 1; i < probs.rows() - 1; i++) {
 		for (int j = 1; j < probs.cols() - 1; j++) {
 			min_score = INT_MAX;
-			label = 2;
 			for (int d = 0; d < 2; d++) {
 				neighbors_sum = get_messages_from_neighbors(m[d][t], i, j, ALL);
 				disp_score = D[d][i][j] + neighbors_sum;
 				if (disp_score < min_score) {
 					min_score = disp_score;
-					label = d;
+					V[i][j] = d;
 				}
 			}
-			V[i][j] = label;
+
 		}
 	}
 
@@ -345,13 +344,9 @@ SDoublePlane mrf_segment(const SDoublePlane *img, const vector<Point> &fg,
 //
 	calc_mean(red_plane, green_plane, blue_plane, m, sig, fg);
 
-	double fg_score = INT_MAX;
-	double min_probability = INT_MAX;
-	double max_probability = INT_MIN;
-
 	probs_table = SDoublePlane(red_plane.rows(), red_plane.cols());
 
-	double beta = 1e-008;//woodpeckers = 1e-012;//cardinal = 1e-008;
+	double beta = 1e-016;//bull = 5e-012; //parakeet = 1e-014;//woodpeckers = 1e-012;//cardinal = 1e-010;
 
 	for (int i = 0; i < result.rows(); i++) {
 		for (int j = 0; j < result.cols(); j++) {
